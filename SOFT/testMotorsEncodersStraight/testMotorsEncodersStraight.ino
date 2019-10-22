@@ -1,6 +1,6 @@
 
-//pins for motors llyggghkgl
-#define PWMA 27hjfghgfhjgf
+//pins for motors 
+#define PWMA 27
 #define DIRA 14
 #define PWMB 12
 #define DIRB 13
