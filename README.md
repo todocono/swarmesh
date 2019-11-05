@@ -1,5 +1,14 @@
 # Swarm Mesh Research Team
 
+To read the latest research published by the team, access: 
+https://github.com/todocono/DOCS/Publications
+
+To work with the PCB, you will need the latest version of Eagle: https://www.autodesk.com/products/eagle/overview 
+
+To work with the 3D models, you will need Fusion 360 and access the following files:
+https://a360.co/2WSIKhr
+https://a360.co/2x0crTh
+
 To work with the IDE and latest version, you need:
 
 - Arduino IDE 1.8.9
