@@ -67,7 +67,7 @@ void loop()
   //Serial.println("BOTH MOTORS...");
   // make a 180 degrees turn
   forward(2500);
-  turnRight(45);
+  turnRight(90);
   //for debugging
   //  if (encoder1.tickOn ) {
   //    Serial.printf("Encoder 1 has been %u times", encoder1.numberTicks);

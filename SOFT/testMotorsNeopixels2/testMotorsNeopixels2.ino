@@ -26,7 +26,7 @@ CRGB leds[NUM_LEDS];
 
 #define BRIGHTNESS          96
 #define FRAMES_PER_SECOND  120
-\
+
 
 //pins for motors
 #define PWMA 27

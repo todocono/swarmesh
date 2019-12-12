@@ -6,7 +6,7 @@ FASTLED_USING_NAMESPACE
 
 // FastLED "100-lines-of-code" demo reel, showing just a few
 // of the kinds of animation patterns you can quickly and easily
-// compose using FastLED.  
+// compose using FastLED.
 //
 // This example also shows one easy way to define multiple
 // animations patterns and have them automatically rotate.
@@ -45,7 +45,7 @@ const long TIME = 500;           // interval at which to blink (milliseconds)
 void setup()
 {
   // tell FastLED about the LED strip configuration
-  FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
   //FastLED.addLeds<LED_TYPE,DATA_PIN,CLK_PIN,COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
 
   // set master brightness control
@@ -63,19 +63,21 @@ void setup()
   pinMode( DIRB, OUTPUT);
   Serial.println("starting...");
 
-  //setup channel 0 with frequency 312500 Hz
-  sigmaDeltaSetup(0, 312500);
-  // sigmaDeltaSetup(1, 312500);
-  // sigmaDeltaSetup(2, 312500);
-  sigmaDeltaSetup(3, 312500);
+  ledcAttachPin(PWMA, 1); // assign RGB led pins to channels
+  ledcAttachPin(PWMB, 2);
+  // Initialize channels
+  // channels 0-15, resolution 1-16 bits, freq limits depend on resolution
+  // ledcSetup(uint8_t channel, uint32_t freq, uint8_t resolution_bits);
+  ledcSetup(1, 12000, 8); // 12 kHz PWM, 8-bit resolution
+  ledcSetup(2, 12000, 8);
 
-  sigmaDeltaAttachPin(12, 0);
-  // sigmaDeltaAttachPin(13,1);
-  // sigmaDeltaAttachPin(14,2);
-  sigmaDeltaAttachPin(27, 3);
-  //initialize channel 0 to off
-  sigmaDeltaWrite(0, 0);
-  sigmaDeltaWrite(3, 0);
+
+  //  pinMode(encoder1.PIN, INPUT_PULLUP);
+  //  pinMode(encoder2.PIN, INPUT_PULLUP);
+  // attachInterrupt(encoder1.PIN, isr, FALLING);
+  //  attachInterrupt(encoder2.PIN, isr2, FALLING);
+  //  encoder1.numberTicks = 0;
+  //  encoder2.numberTicks = 0;
 }
 
 
@@ -86,66 +88,73 @@ SimplePatternList gPatterns = { rainbow, rainbowWithGlitter, confetti, sinelon, 
 uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 
- 
+
 void loop()
 {
-    // Call the current pattern function once, updating the 'leds' array
-  gPatterns[gCurrentPatternNumber]();
+  // Call the current pattern function once, updating the 'leds' array
 
+  fill_rainbow( leds, NUM_LEDS, gHue, 7);
   // send the 'leds' array out to the actual LED strip
-  FastLED.show();  
- 
+  FastLED.show();
+
   int speed0 = 254;
   int speed1 = 254;
   Serial.println("MOTOR 0...");
-  motor0 (speed0, 0);
+  motorA (speed0, 0);
   delay (TIME);
-  motor0 (speed0, 1);
+  motorA (speed0, 1);
   delay (TIME);
-  motor0 (0, 0);
-
+  motorA (0, 0);
+  CRGBPalette16 palette = PartyColors_p;
+  for ( int i = 0; i < NUM_LEDS; i++) { //9948
+    leds[i] = CRGB::White;
+  }
+  FastLED.show();
   Serial.println("MOTOR 1...");
-  motor1 (speed1, 0);
+  motorB (speed1, 0);
   delay (TIME);
-  motor1 (speed1, 1);
+  motorB (speed1, 1);
   delay (TIME);
-  motor1 (0, 0);
-
-
+  motorB (0, 0);
+  fadeToBlackBy( leds, NUM_LEDS, 20);
+  FastLED.show();
   Serial.println("BOTH MOTORS...");
-  motor0 (speed1, 0);
-  motor1 (speed1, 0);
+  motorA (speed1, 0);
+  motorB (speed1, 0);
   delay (TIME);
-  motor0 (speed1, 1);
-  motor1 (speed1, 1);
+  motorA (speed1, 1);
+  motorB (speed1, 1);
   delay (TIME);
-  motor0 (0, 0);
-  motor1 (0, 0);
+  motorA (0, 0);
+  motorB (0, 0);
 }
 
-void motor0 ( int speed, int direction) {
+void motorA ( int speed, int direction) {
   if (direction) {
     digitalWrite(DIRA, HIGH);
-    sigmaDeltaWrite(0, 255 - speed);
+    ledcWrite(1, 255 - speed);
+
+    // sigmaDeltaWrite(0, 255 - speed);
   }
   else {
     digitalWrite(DIRA, LOW);
-    sigmaDeltaWrite(0, speed);
+    //sigmaDeltaWrite(0, speed);
+    ledcWrite(1, speed);
   }
 }
 
-void motor1 ( int speed, int direction) {
+void motorB ( int speed, int direction) {
   if (direction) {
     digitalWrite(DIRB, HIGH);
-    sigmaDeltaWrite(3, 255 - speed);
+    //sigmaDeltaWrite(3, 255 - speed);
+    ledcWrite(2, 255 - speed);
   }
   else {
     digitalWrite(DIRB, LOW);
-    sigmaDeltaWrite(3, speed);
+    //sigmaDeltaWrite(3, speed);
+    ledcWrite(2, speed);
   }
 }
-
-
 
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
@@ -171,7 +180,7 @@ void rainbowWithGlitter()
 
 void addGlitter( fract8 chanceOfGlitter)
 {
-  if( random8() < chanceOfGlitter) {
+  if ( random8() < chanceOfGlitter) {
     leds[ random16(NUM_LEDS) ] += CRGB::White;
   }
 }
@@ -188,7 +197,7 @@ void sinelon()
 {
   // a colored dot sweeping back and forth, with fading trails
   fadeToBlackBy( leds, NUM_LEDS, 20);
-  int pos = beatsin16( 13, 0, NUM_LEDS-1 );
+  int pos = beatsin16( 13, 0, NUM_LEDS - 1 );
   leds[pos] += CHSV( gHue, 255, 192);
 }
 
@@ -198,8 +207,8 @@ void bpm()
   uint8_t BeatsPerMinute = 62;
   CRGBPalette16 palette = PartyColors_p;
   uint8_t beat = beatsin8( BeatsPerMinute, 64, 255);
-  for( int i = 0; i < NUM_LEDS; i++) { //9948
-    leds[i] = ColorFromPalette(palette, gHue+(i*2), beat-gHue+(i*10));
+  for ( int i = 0; i < NUM_LEDS; i++) { //9948
+    leds[i] = ColorFromPalette(palette, gHue + (i * 2), beat - gHue + (i * 10));
   }
 }
 
@@ -207,8 +216,8 @@ void juggle() {
   // eight colored dots, weaving in and out of sync with each other
   fadeToBlackBy( leds, NUM_LEDS, 20);
   byte dothue = 0;
-  for( int i = 0; i < 8; i++) {
-    leds[beatsin16( i+7, 0, NUM_LEDS-1 )] |= CHSV(dothue, 200, 255);
+  for ( int i = 0; i < 8; i++) {
+    leds[beatsin16( i + 7, 0, NUM_LEDS - 1 )] |= CHSV(dothue, 200, 255);
     dothue += 32;
   }
 }
