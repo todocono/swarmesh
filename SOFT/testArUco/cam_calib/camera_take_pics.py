@@ -11,6 +11,7 @@ source = 0
 cap = cv2.VideoCapture(source)
 while not cap:
     cap = cv2.VideoCapture(source)
+
 print("starting video... ")
 print("saving pictures every 3s or every SPACE bar pressed ")
 
@@ -19,6 +20,7 @@ current_time = current_milli_time()
 path = os.getcwd() + "\calib\calib  "
 # path = "E:/swarm/arUco-master/cam_calib/calib"
 i = 0
+
 while True:
     ret, frame = cap.read()
     # cv2.namedWindow('original', 0)
@@ -30,9 +32,10 @@ while True:
         print("ok, I quit!")
         break
     # take pics either every 3s or every space bar stroke
-    if current_milli_time() - current_time > 3000 or k == 32:
-        name = path + str(i) + ".jpg"
+    if k == 32:
+        name = path + str(i + 21) + ".jpg"
         print(name)
+
         cv2.imwrite(name, frame)
         current_time = current_milli_time()
         i = i + 1

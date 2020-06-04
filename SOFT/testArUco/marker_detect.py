@@ -3,17 +3,29 @@ import numpy as np
 import cv2 as cv
 from cv2 import aruco
 import math
+import json
+
+
 # ################### CALCULATE ############################################
 def calc_orientation(vector):
-    tan = vector[0][1]/vector[0][0]
-    ori = math.degrees(math.atan(tan)*2)
-    return ori
+    tan = vector[0][1] / vector[0][0]
+    ori = math.degrees(math.atan(tan) * 2)
+    return round(ori, 0)
+
+
 def calc_pos(corners):
-    pos = (int(sum([j[0] for j in corners[0]]) // 4),
-           int(sum([k[1] for k in corners[0]]) // 4))
+    pos = [int(sum([j[0] for j in corners[0]]) // 4) - 240,
+           int(sum([k[1] for k in corners[0]]) // 4)]
     return pos
+
+
+# coef is 0.21
+def cvt_pos(coord):
+    return [round(i * 0.21, 0) for i in coord]
+
+
 # ################### INITIALIZING ############################################
-rt, mtx, dist, cam_rvecs, cam_tvecs = cam_calib()  #to run calibration
+rt, mtx, dist, cam_rvecs, cam_tvecs = cam_calib()  # to run calibration
 # mtx = np.array([[1.1551e+03, 0, 5.457e+02],
 #                [0, 1.1509e+03, 7.174e+02],
 #                [0, 0, 1]])  # calibrate result
@@ -37,24 +49,25 @@ while not cap:
 print("press q to quit.")
 while True:
     ret, frame = cap.read()
-    h,w = frame.shape[:2]
-    new_mtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+    h, w = frame.shape[:2]
+    new_mtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
     dst = cv.undistort(frame, mtx, dist, None, new_mtx)
     gray = cv.cvtColor(dst, cv.COLOR_BGR2GRAY)
+    gray = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
     corners, ids, rejectedImgPoints = aruco.detectMarkers(gray,
                                                           aruco_dict,
                                                           parameters=params)
     if ids is not None:
         pos_dict = {}
-        for n in range(len(ids)):   # we analyze the markers found
+        for n in range(len(ids)):  # we analyze the markers found
             rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(corners[n],
                                                               0.05, mtx, dist)
             id = ids[n][0]
-            print(id)
             pos = calc_pos(corners[n])
             ori = calc_orientation(rvecs[0])
-            pos_dict[id] = [pos, ori]
-            print(pos_dict)
+            aruco.drawAxis(dst, mtx, dist, rvecs[0], tvecs[0], 0.05)
+            pos = cvt_pos(pos)
+            pos_dict[int(id)] = [pos, ori]
             # x_center = (corners[n][0][0][0] + corners[n][0][2][0])/2
             # y_center = (corners[n][0][0][1] + corners[n][0][2][1])/2
             # x_center2 = (corners[n][0][1][0] + corners[n][0][3][0])/2
@@ -68,21 +81,20 @@ while True:
             #       " y= " + str(y_center) +
             #       " with center2 at x= " + str(x_center2) +
             #       " y= " + str(y_center2))
-        aruco.drawDetectedMarkers(dst, corners, ids, (0, 0, 255))
-        for i in corners: #corners[i][0][j][0]  and  corners[i][0][k][1]
-            pos = (int(sum([j[0] for j in i[0]])/4),
-                   int(sum([k[1] for k in i[0]])//4))
+        print(pos_dict)
+        for i in corners:  # corners[i][0][j][0]  and  corners[i][0][k][1]
+            pos = (int(sum([j[0] for j in i[0]]) / 4),
+                   int(sum([k[1] for k in i[0]]) // 4))
             txt_pos = pos[0], pos[1] - 20
             cv.circle(dst, pos, 1, (0, 0, 255), -1)
             cv.putText(dst, '{}'.format(pos), txt_pos, font, 0.3, (0, 255, 0))
             # print(pos)
 
-
         # for i in range(len(ids)):
-        #     aruco.drawAxis(dst, mtx, dist, rvecs[i], tvecs[i], 0.05)
+        #     aruco.drawAxis(dst, mtx, dist, rvecs[0], tvecs[0], 0.05)
     # cv.namedWindow('dst', 0)
     # cv.imshow("orig", frame)
     imS = cv.resize(dst, (960, 480))
-    cv.imshow("dst", imS)
+    cv.imshow("dst", dst)
     if cv.waitKey(1) & 0xFF == ord('q'):
         break
