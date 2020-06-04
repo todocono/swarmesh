@@ -98,7 +98,7 @@ while True:
 
         if time.time() - previous_time >= 3:
             send_pos(SOCK)
-        previous_time = time.time()
+            previous_time = time.time()
 
         for i in corners:  # corners[i][0][j][0]  and  corners[i][0][k][1]
             pos = (int(sum([j[0] for j in i[0]]) / 4),
