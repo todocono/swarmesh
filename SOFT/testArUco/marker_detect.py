@@ -4,6 +4,10 @@ import cv2 as cv
 from cv2 import aruco
 import math
 import json
+import socket
+import struct
+import time
+import threading
 
 
 # ################### CALCULATE ############################################
@@ -22,6 +26,16 @@ def calc_pos(corners):
 # coef is 0.21
 def cvt_pos(coord):
     return [round(i * 0.21, 0) for i in coord]
+
+def send_pos():
+    multicast_group = ("224.3.29.1", 10001)
+    TTL = struct.pack('b', 8)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, TTL)
+    while True:
+        sock.sendto(json.dumps(pos_dict).encode(), multicast_group)
+        time.sleep(3)
+
 
 
 # ################### INITIALIZING ############################################
@@ -82,6 +96,10 @@ while True:
             #       " with center2 at x= " + str(x_center2) +
             #       " y= " + str(y_center2))
         print(pos_dict)
+
+        send_pos_thread = threading.Thread(target=send_pos)
+        send_pos_thread.start()
+
         for i in corners:  # corners[i][0][j][0]  and  corners[i][0][k][1]
             pos = (int(sum([j[0] for j in i[0]]) / 4),
                    int(sum([k[1] for k in i[0]]) // 4))
