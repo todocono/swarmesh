@@ -7,7 +7,7 @@ import json
 import socket
 import struct
 import time
-import threading
+
 
 
 # ################### CALCULATE ############################################
@@ -27,14 +27,11 @@ def calc_pos(corners):
 def cvt_pos(coord):
     return [round(i * 0.21, 0) for i in coord]
 
-def send_pos():
+def send_pos(SOCK):
     multicast_group = ("224.3.29.1", 10001)
     TTL = struct.pack('b', 8)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, TTL)
-    while True:
-        sock.sendto(json.dumps(pos_dict).encode(), multicast_group)
-        time.sleep(3)
+    SOCK.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, TTL)
+    SOCK.sendto(json.dumps(pos_dict).encode(), multicast_group)
 
 
 
@@ -51,6 +48,7 @@ rt, mtx, dist, cam_rvecs, cam_tvecs = cam_calib()  # to run calibration
 # dist = np.array([1.043e-01, -1.524e-01, 1.3e-3, 1e-3, -1.15e-01])
 
 source = 0  # "http://ZDRM:12345678@10.209.31.55:8081" #0 or 1 for usb webcam
+SOCK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 cap = cv.VideoCapture(source)
 cap.set(3, 1920)
 cap.set(4, 1080)
@@ -61,6 +59,7 @@ params = aruco.DetectorParameters_create()
 while not cap:
     cap = cv.VideoCapture(source)
 print("press q to quit.")
+previous_time = time.time()
 while True:
     ret, frame = cap.read()
     h, w = frame.shape[:2]
@@ -97,8 +96,9 @@ while True:
             #       " y= " + str(y_center2))
         print(pos_dict)
 
-        send_pos_thread = threading.Thread(target=send_pos)
-        send_pos_thread.start()
+        if time.time() - previous_time >= 3:
+            send_pos(SOCK)
+        previous_time = time.time()
 
         for i in corners:  # corners[i][0][j][0]  and  corners[i][0][k][1]
             pos = (int(sum([j[0] for j in i[0]]) / 4),
