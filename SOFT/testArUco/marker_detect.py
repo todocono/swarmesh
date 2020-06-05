@@ -64,7 +64,7 @@ params = aruco.DetectorParameters_create()
 
 # Perspective transformation
 # (,) (,) (,) (,)
-p_pts1 = np.float32([[150,10], [1850,10], [150,1060], [1850,1060]])
+p_pts1 = np.float32([[20,10], [1850,10], [20,1060], [1850,1060]])
 p_pts2 = np.float32([[0, 0], [1920, 0], [0, 1080], [1920, 1080]])
 p_matrix = cv.getPerspectiveTransform(p_pts1, p_pts2)
 
