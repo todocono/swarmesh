@@ -1,0 +1,17 @@
+"Part";"Value";"Device";"Package";"Description";"AVAILABILITY";"DESCRIPTION";"DIGIKEY-PURCHASE-URL";"HEIGHT";"MANUFACTURER_NAME";"MANUFACTURER_PART_NUMBER";"MF";"MOUSER_PART_NUMBER";"MOUSER_PRICE-STOCK";"MP";"MPN";"OC_FARNELL";"OC_NEWARK";"PACKAGE";"POPULARITY";"PRICE";"RS_PART_NUMBER";"RS_PRICE-STOCK";"SPICEPREFIX";
+"BT1";"3.7V BATT";"6S-AA";"BAT_6S-AA";"";"Unavailable";" BATTERY HOLDER AA PC PIN ";"https://snapeda.com/shop?store=DigiKey&id=4389101";"";"";"";"MPD";"";"";"6S-AA";"";"";"";"None";"";"None";"";"";"";
+"C1";"";"C-US025-030X050";"C025-030X050";"CAPACITOR, American symbol";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"C2";"";"C-US025-025X050";"C025-025X050";"CAPACITOR, American symbol";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"C3";"";"C-US025-025X050";"C025-025X050";"CAPACITOR, American symbol";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"F1";"RUEF300K-2";"RUEF300K-2";"RUEF300K2";"TE CONNECTIVITY / RAYCHEM - RUEF300K-2 - RESETTABLE FUSE, PTC, 30V, 3A, RADIAL";"";"TE CONNECTIVITY / RAYCHEM - RUEF300K-2 - RESETTABLE FUSE, PTC, 30V, 3A, RADIAL";"";"16.5mm";"TE CONNECTIVITY / RAYCHEM";"RUEF300K-2";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"JM1";"B6B-ZR";"B6B-ZR";"B6B-ZR";"JST-ZH Connector";"Unavailable";" Connector Header Surface Mount 6 position 0.059 _1.50mm_ ";"";"";"";"";"JST";"";"";"B6B-ZR";"";"";"";"None";"";"None";"";"";"";
+"JM2";"B6B-ZR";"B6B-ZR";"B6B-ZR";"JST-ZH Connector";"Unavailable";" Connector Header Surface Mount 6 position 0.059 _1.50mm_ ";"";"";"";"";"JST";"";"";"B6B-ZR";"";"";"";"None";"";"None";"";"";"";
+"L1";"82114R";"82114R";"82114R";"INDUCTOR";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"2";"";"";"";"L";
+"LDOREG";"MCP1700T-3302E/TT";"MCP1700T-3302E/TT";"SOT95P237X112-3N";"";"Unavailable";" IC REG LINEAR 3.3V 250MA SOT23-3 ";"";"";"";"";"Microchip Technology";"";"";"MCP1700T-3302E/TT";"";"";"";"None";"";"None";"";"";"";
+"R1";"";"R-US_0207/9";"0207/9";"RESISTOR, American symbol";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"R2";"";"R-US_0207/9";"0207/9";"RESISTOR, American symbol";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"R3";"";"R-US_0207/9";"0207/9";"RESISTOR, American symbol";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"R4";"";"R-US_0207/9";"0207/9";"RESISTOR, American symbol";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"S1";"";"SWITCH_320-938";"PS22F03";"TOGGLE SWITCH";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"U1";"ESP32DEVKITC";"ESP32DEVKITC";"ESP32-DEVKITC";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";"";
+"U2";"L293D";"L293D";"DIL16";"PUSH-PULL 4 CHANNEL DRIVER";"";"";"";"";"";"";"";"";"";"";"L293D";"9589619";"56P8249";"";"";"";"";"";"";
