@@ -8,9 +8,9 @@ import socket
 import struct
 import time
 
-
 POSITION_GROUP = ("224.3.29.1", 10001)
 TASK_GROUP = ("224.3.29.2", 10002)
+
 
 # ################### CALCULATE ############################################
 def calc_orientation(vector):
@@ -54,7 +54,7 @@ rt, mtx, dist, cam_rvecs, cam_tvecs = cam_calib()  # to run calibration
 # dist = np.array([1.043e-01, -1.524e-01, 1.3e-3, 1e-3, -1.15e-01])
 
 source = 0  # "http://ZDRM:12345678@10.209.31.55:8081" #0 or 1 for usb webcam
-SOCK_POS, SOCK_TASK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# SOCK_POS, SOCK_TASK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 cap = cv.VideoCapture(source)
 cap.set(3, 1920)
 cap.set(4, 1080)
@@ -62,15 +62,35 @@ font = cv.FONT_HERSHEY_SIMPLEX
 aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
 params = aruco.DetectorParameters_create()
 
+# Perspective transformation
+# (,) (,) (,) (,)
+p_pts1 = np.float32([[150,10], [1850,10], [150,1060], [1850,1060]])
+p_pts2 = np.float32([[0, 0], [1920, 0], [0, 1080], [1920, 1080]])
+p_matrix = cv.getPerspectiveTransform(p_pts1, p_pts2)
+
+"""
+# Affince transformation
+a_pt1 = np.float32([[1293, 867], [49, 654], [861, 73]])
+a_pt2 = np.float32([[1342, 876], [66, 676], [190, 76]])
+a_matrix = cv.getAffineTransform(a_pt1, a_pt2)
+print(a_matrix)
+"""
+
 while not cap:
     cap = cv.VideoCapture(source)
 print("press q to quit.")
 previous_time = time.time()
 while True:
     ret, frame = cap.read()
+    frame = cv.warpPerspective(frame, p_matrix, (1920, 1080))
+    #cv.circle(frame, (240, 10), 10, (0, 0, 255), -1)
+    #cv.circle(frame, (1670, 10), 10, (0, 0, 255), -1)
+    #cv.circle(frame, (230, 1060), 10, (0, 0, 255), -1)
+    #cv.circle(frame, (1670, 1060), 10, (0, 0, 255), -1)
     h, w = frame.shape[:2]
     new_mtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
     dst = cv.undistort(frame, mtx, dist, None, new_mtx)
+    # n_dst = cv.warpAffine(dst, a_matrix, (1920, 1080))
     gray = cv.cvtColor(dst, cv.COLOR_BGR2GRAY)
     gray = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
     corners, ids, rejectedImgPoints = aruco.detectMarkers(gray,
@@ -79,10 +99,16 @@ while True:
     if ids is not None:
         pos_dict = {}
         for n in range(len(ids)):  # we analyze the markers found
-            rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(corners[n],
-                                                              0.05, mtx, dist)
+            rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(corners[n], 0.05, mtx, dist)
+
+            # print(corners[n])
+            # print("tvecs:", tvecs)
+            # print()
+            # print("rvecs:", rvecs[-1][-1][-1])
+            # print()
             id = ids[n][0]
             pos = calc_pos(corners[n])
+            # print("Camera pos:", pos)
             ori = calc_orientation(rvecs[0])
             aruco.drawAxis(dst, mtx, dist, rvecs[0], tvecs[0], 0.05)
             pos = cvt_pos(pos)
@@ -103,7 +129,7 @@ while True:
         print(pos_dict)
 
         if time.time() - previous_time >= 3:
-            send_pos(SOCK_POS)
+            # send_pos(SOCK_POS)
             previous_time = time.time()
 
         for i in corners:  # corners[i][0][j][0]  and  corners[i][0][k][1]
@@ -119,6 +145,6 @@ while True:
     # cv.namedWindow('dst', 0)
     # cv.imshow("orig", frame)
     imS = cv.resize(dst, (960, 480))
-    cv.imshow("dst", dst)
+    cv.imshow("dst", imS)
     if cv.waitKey(1) & 0xFF == ord('q'):
         break
