@@ -9,6 +9,8 @@ import struct
 import time
 
 
+POSITION_GROUP = ("224.3.29.1", 10001)
+TASK_GROUP = ("224.3.29.2", 10002)
 
 # ################### CALCULATE ############################################
 def calc_orientation(vector):
@@ -27,12 +29,16 @@ def calc_pos(corners):
 def cvt_pos(coord):
     return [round(i * 0.21, 0) for i in coord]
 
+
 def send_pos(SOCK):
-    multicast_group = ("224.3.29.1", 10001)
     TTL = struct.pack('b', 8)
     SOCK.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, TTL)
-    SOCK.sendto(json.dumps(pos_dict).encode(), multicast_group)
+    SOCK.sendto(json.dumps(pos_dict).encode(), POSITION_GROUP)
 
+
+def send_task(num, pos):
+    task_dict = {"num": num,
+                 "pos": pos}
 
 
 # ################### INITIALIZING ############################################
@@ -48,7 +54,7 @@ rt, mtx, dist, cam_rvecs, cam_tvecs = cam_calib()  # to run calibration
 # dist = np.array([1.043e-01, -1.524e-01, 1.3e-3, 1e-3, -1.15e-01])
 
 source = 0  # "http://ZDRM:12345678@10.209.31.55:8081" #0 or 1 for usb webcam
-SOCK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+SOCK_POS, SOCK_TASK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 cap = cv.VideoCapture(source)
 cap.set(3, 1920)
 cap.set(4, 1080)
@@ -97,7 +103,7 @@ while True:
         print(pos_dict)
 
         if time.time() - previous_time >= 3:
-            send_pos(SOCK)
+            send_pos(SOCK_POS)
             previous_time = time.time()
 
         for i in corners:  # corners[i][0][j][0]  and  corners[i][0][k][1]
