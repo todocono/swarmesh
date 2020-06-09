@@ -138,16 +138,6 @@ void loop() {
 //}
 
 void actionDecoder(int* POS, int* DST, int ORI) {
-  //  rotate to the right direction
-  //  if (abs(ORI) >= 5) {
-  //    if (ORI >= 0) {
-  //      STATE = 2;
-  //      turnLeft(ORI);
-  //    } else {
-  //      STATE = 3;
-  //      turnRight(abs(ORI));
-  //    }
-  //  }
   //  calculate the robots' absolute position
   int x = DST[0] - POS[0];
   int y = DST[1] - POS[1];
@@ -213,12 +203,20 @@ void actionDecoder(int* POS, int* DST, int ORI) {
     }
   } else {
     //    recalibrate itself with the normal vector of the map
-    if (ORI >= 0) {
-      STATE = 2;
-      TURN = ORI;
+//    if (ORI >= 0) {
+//      STATE = 2;
+//      TURN = ORI;
+//    } else {
+//      STATE = 3;
+//      TURN = abs(ORI);
+//    }
+    int remain = ORI % 90;
+    if (abs(remain) >= 45){
+      STATE = (remain < 0)? 2:3;
+      TURN = 90 - abs(remain);
     } else {
-      STATE = 3;
-      TURN = abs(ORI);
+      STATE = (remain > 0)? 2:3;
+      TURN = abs(remain);
     }
   }
 }
