@@ -64,7 +64,8 @@ params = aruco.DetectorParameters_create()
 
 # Perspective transformation
 # (,) (,) (,) (,)
-p_pts1 = np.float32([[20,10], [1850,10], [20,1060], [1850,1060]])
+# p_pts1 = np.float32([[20, 10], [1850, 10], [20, 1060], [1850, 1060]])
+p_pts1 = np.float32([[10, 0], [1850, 0], [10, 1037], [1850, 1037]])
 p_pts2 = np.float32([[0, 0], [1920, 0], [0, 1080], [1920, 1080]])
 p_matrix = cv.getPerspectiveTransform(p_pts1, p_pts2)
 
@@ -83,10 +84,10 @@ previous_time = time.time()
 while True:
     ret, frame = cap.read()
     frame = cv.warpPerspective(frame, p_matrix, (1920, 1080))
-    #cv.circle(frame, (240, 10), 10, (0, 0, 255), -1)
-    #cv.circle(frame, (1670, 10), 10, (0, 0, 255), -1)
-    #cv.circle(frame, (230, 1060), 10, (0, 0, 255), -1)
-    #cv.circle(frame, (1670, 1060), 10, (0, 0, 255), -1)
+    # cv.circle(frame, (240, 10), 10, (0, 0, 255), -1)
+    # cv.circle(frame, (1670, 10), 10, (0, 0, 255), -1)
+    # cv.circle(frame, (230, 1060), 10, (0, 0, 255), -1)
+    # cv.circle(frame, (1670, 1060), 10, (0, 0, 255), -1)
     h, w = frame.shape[:2]
     new_mtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
     dst = cv.undistort(frame, mtx, dist, None, new_mtx)
