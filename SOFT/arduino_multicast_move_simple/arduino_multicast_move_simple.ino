@@ -12,6 +12,8 @@ int STATE = 0;
 int* POS;
 int* DST;
 int ORI;
+int TURN;
+int DIST;
 
 struct Tick {
   const uint8_t PIN;
@@ -104,26 +106,13 @@ void loop() {
   //    int* num = dstSelector(POS, jTask);
   //    int* dst = dstSelector(POS, jTask["Tasks"]);
   //  }
-  if (STATE == 2) {
-    turnLeft(ORI);
+  if (STATE == 1){
+    forward(DIST);
+  } else if (STATE == 2) {
+    turnLeft(TURN);
   } else if (STATE == 3) {
-    turnRight(abs(ORI));
+    turnRight(TURN);
   }
-}
-
-void jsonHandlerPos(DynamicJsonDocument& jdoc) {
-  const float rotation = jdoc["5"][1];
-  const float x = jdoc["5"][0][0];
-  const float y = jdoc["5"][0][1];
-  Serial.print("x:");
-  Serial.print(x);
-  Serial.println();
-  Serial.print("y");
-  Serial.print(y);
-  Serial.println();
-  Serial.print("rotation: ");
-  Serial.print(rotation);
-
 }
 
 //void dstSelector(int* POS, int* DST, DynamicJsonDocument& jTask){
@@ -150,32 +139,85 @@ void jsonHandlerPos(DynamicJsonDocument& jdoc) {
 
 void actionDecoder(int* POS, int* DST, int ORI) {
   //  rotate to the right direction
-  if (abs(ORI) >= 5) {
+//  if (abs(ORI) >= 5) {
+//    if (ORI >= 0) {
+//      STATE = 2;
+//      turnLeft(ORI);
+//    } else {
+//      STATE = 3;
+//      turnRight(abs(ORI));
+//    }
+//  }
+//  calculate the robots' absolute position
+  int x = DST[0] - POS[0];
+  int y = DST[1] - POS[1];
+  TURN = 90;
+  if (abs(ORI) <= 5){
+    if (y >= 1){
+      STATE = 1;
+      DIST = y * 1000;
+    } else if (y <= -1){
+      STATE = 3;
+      TURN = 180;
+    } else {
+      if (x >= 1){
+        STATE = 3;
+      } else if (x <= -1){
+        STATE = 2;
+      }
+    }
+  } else if (abs(ORI) >= 175){
+    if (y >= 1){
+      STATE = 3;
+      TURN = 180;
+    } else if (y <= -1){
+      STATE = 1;
+      DIST = abs(y) * 1000;
+    } else {
+      if (x >= 1){
+        STATE = 2;
+      } else if (x <= -1){
+        STATE = 3;
+      }
+    }
+  } else if (ORI >= 85 && ORI <= 95){
+    if (x >= 1){
+      STATE = 1;
+      DIST = x * 1000;
+    } else if (x <= 1){
+      STATE = 3;
+      TURN = 180;
+    } else {
+      if (y >= 1){
+        STATE = 2;
+      } else if (y <= -1){
+        STATE = 3;
+      }
+    }
+  } else if (ORI >= -95 && ORI <= -85){
+    if (x >= 1){
+      STATE = 3;
+      TURN = 180;
+    } else if (x <= -1){
+      STATE = 1;
+      DIST = abs(x) * 1000;
+    } else {
+      if (y >= 1){
+        STATE = 3;
+      } else if (y <= -1){
+        STATE = 2;
+      }
+    }
+  } else {
+//    recalibrate itself with the normal vector of the map
     if (ORI >= 0) {
       STATE = 2;
-      turnLeft(ORI);
+      TURN = ORI;
     } else {
-      STATE = 3;
-      turnRight(abs(ORI));
+      STATE = 3; 
+      TURN = ORI;     
     }
   }
-  //  } else if (abs(DST[1] - POS[1]) >= 1){
-  //    int diff = DST[1] - POS[1];
-  //    if (diff > 0){
-  //      forward(1000);
-  //    } else {
-  //      turnLeft(180);
-  //      forward(abs(diff));
-  //    }
-  //  } else if (abs(DST[0] - POS[0]) >= 1){
-  //    int diff = DST[0] - POS[0];
-  //    if (diff > 0){
-  //      turnRight(90);
-  //      forward(1000);
-  //    } else {
-  //      turnLeft(90);
-  //      forward(1000);
-  //    }
 }
 
 void forward(int dist) {
