@@ -58,6 +58,8 @@ void setup() {
 }
 
 void loop() {
+////////////////////////////10CM = 1000 TURNS////////////////////////////
+  forward(1000);
   // put your main code here, to run repeatedly:
   // use state machine
   // state 1
@@ -168,12 +170,11 @@ void turnRight(int deg) {
 
 void forward(int dist) {
   if (encoder1.numberTicks < dist){
-    if ( encoder1.numberTicks > encoder2.numberTicks) {
-      motorA (200, 0);
-      motorB (0, 0);
-    } else if ( encoder1.numberTicks < encoder2.numberTicks) {
-      motorA (0, 0);
-      motorB (200, 0);
+    if (dist - encoder1.numberTicks <= 1000){
+      int SPD = 0.5 * (dist - encoder1.numberTicks);
+      SPD = map(SPD, 0, 1000 * 0.5, 80, 255);
+      motorA(SPD, 0);
+      motorB(SPD, 0);
     } else {
       motorA(200, 0);
       motorB(200, 0);
