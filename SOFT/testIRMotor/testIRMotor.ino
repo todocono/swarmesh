@@ -152,14 +152,14 @@ void turnRight(int deg) {
   int num = deg / 45;
   if (encoder1.numberTicks <= PULSE * num) {
        if ( encoder1.numberTicks > encoder2.numberTicks) {
-        motorA (100, 1);
+        motorA (255, 1);
         motorB (0, 0);
        } else if ( encoder1.numberTicks < encoder2.numberTicks){
         motorA (0, 0);
-        motorB (100, 0);
+        motorB (255, 0);
       } else {
-        motorA(100, 1);
-        motorB(100, 0);
+        motorA(255, 1);
+        motorB(255, 0);
       }
        Serial.printf("Motor 1: %d", encoder1.numberTicks);
        Serial.printf("Motor 2: %d", encoder2.numberTicks);
@@ -177,7 +177,7 @@ void forward(int dist) {
   if (encoder1.numberTicks < dist){
     if (dist - encoder1.numberTicks <= 1000){
       int SPD = 0.5 * (dist - encoder1.numberTicks);
-      SPD = map(SPD, 0, 1000 * 0.5, 80, 255);
+      SPD = map(SPD, 0, 1000 * 0.5, 200, 255);
       motorA(SPD, 0);
       motorB(SPD, 0);
     } else {
@@ -200,14 +200,14 @@ void turnLeft(int deg) {
   int num = deg / 45;
   if (encoder1.numberTicks <= PULSE * num) {
     if ( encoder1.numberTicks > encoder2.numberTicks) {
-      motorA (100, 0);
+      motorA (255, 0);
       motorB (0, 0);
     } else if ( encoder1.numberTicks < encoder2.numberTicks) {
       motorA (0, 0);
-      motorB (100, 1);
+      motorB (255, 1);
     } else {
-      motorA(100, 0);
-      motorB(100, 1);
+      motorA(255, 0);
+      motorB(255, 1);
     }
   } else {
     motorA(0, 0);

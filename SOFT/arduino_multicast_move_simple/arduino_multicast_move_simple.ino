@@ -72,8 +72,8 @@ void setup()
   //  listening to both task and current position on this channel
   if (udp.listenMulticast(IPAddress(224, 3, 29, 1), 10001)) {
     udp.onPacket([](AsyncUDPPacket packet) {
-      deserializeJson(jPos, packet.data());
       if (STATE == 0) {
+        deserializeJson(jPos, packet.data());
         POS[0] = jPos["POS"][0][0];
         POS[1] = jPos["POS"][0][1];
         DST[0] = jPos["Task"][0];
@@ -106,8 +106,8 @@ void loop() {
   //    int* num = dstSelector(POS, jTask);
   //    int* dst = dstSelector(POS, jTask["Tasks"]);
   //  }
-  if (STATE == 1){
-    forward(DIST);
+  if (STATE == 1) {
+    forward(1000);
   } else if (STATE == 2) {
     turnLeft(TURN);
   } else if (STATE == 3) {
@@ -139,83 +139,86 @@ void loop() {
 
 void actionDecoder(int* POS, int* DST, int ORI) {
   //  rotate to the right direction
-//  if (abs(ORI) >= 5) {
-//    if (ORI >= 0) {
-//      STATE = 2;
-//      turnLeft(ORI);
-//    } else {
-//      STATE = 3;
-//      turnRight(abs(ORI));
-//    }
-//  }
-//  calculate the robots' absolute position
+  //  if (abs(ORI) >= 5) {
+  //    if (ORI >= 0) {
+  //      STATE = 2;
+  //      turnLeft(ORI);
+  //    } else {
+  //      STATE = 3;
+  //      turnRight(abs(ORI));
+  //    }
+  //  }
+  //  calculate the robots' absolute position
   int x = DST[0] - POS[0];
   int y = DST[1] - POS[1];
+  Serial.println(x);
+  Serial.println(y);
+  Serial.println("#################");
   TURN = 90;
-  if (abs(ORI) <= 5){
-    if (y >= 1){
+  if (abs(ORI) <= 5) {
+    if (y >= 1) {
+      STATE = 3;
+      TURN = 180;
+    } else if (y <= -1) {
       STATE = 1;
       DIST = y * 1000;
-    } else if (y <= -1){
-      STATE = 3;
-      TURN = 180;
     } else {
-      if (x >= 1){
+      if (x >= 1) {
         STATE = 3;
-      } else if (x <= -1){
+      } else if (x <= -1) {
         STATE = 2;
       }
     }
-  } else if (abs(ORI) >= 175){
-    if (y >= 1){
-      STATE = 3;
-      TURN = 180;
-    } else if (y <= -1){
+  } else if (abs(ORI) >= 175) {
+    if (y >= 1) {
       STATE = 1;
       DIST = abs(y) * 1000;
+    } else if (y <= -1) {
+      STATE = 3;
+      TURN = 180;
     } else {
-      if (x >= 1){
+      if (x >= 1) {
         STATE = 2;
-      } else if (x <= -1){
+      } else if (x <= -1) {
         STATE = 3;
       }
     }
-  } else if (ORI >= 85 && ORI <= 95){
-    if (x >= 1){
+  } else if (ORI >= 85 && ORI <= 95) {
+    if (x >= 1) {
       STATE = 1;
       DIST = x * 1000;
-    } else if (x <= 1){
+    } else if (x <= 1) {
       STATE = 3;
       TURN = 180;
     } else {
-      if (y >= 1){
+      if (y >= 1) {
         STATE = 2;
-      } else if (y <= -1){
+      } else if (y <= -1) {
         STATE = 3;
       }
     }
-  } else if (ORI >= -95 && ORI <= -85){
-    if (x >= 1){
+  } else if (ORI >= -95 && ORI <= -85) {
+    if (x >= 1) {
       STATE = 3;
       TURN = 180;
-    } else if (x <= -1){
+    } else if (x <= -1) {
       STATE = 1;
       DIST = abs(x) * 1000;
     } else {
-      if (y >= 1){
+      if (y >= 1) {
         STATE = 3;
-      } else if (y <= -1){
+      } else if (y <= -1) {
         STATE = 2;
       }
     }
   } else {
-//    recalibrate itself with the normal vector of the map
+    //    recalibrate itself with the normal vector of the map
     if (ORI >= 0) {
       STATE = 2;
       TURN = ORI;
     } else {
-      STATE = 3; 
-      TURN = ORI;     
+      STATE = 3;
+      TURN = abs(ORI);
     }
   }
 }
@@ -237,7 +240,7 @@ void forward(int dist) {
     motorB(0, 0);
     encoder1.numberTicks = 0;
     encoder2.numberTicks = 0;
-    //    STATE = 0;
+    STATE = 0;
   }
 }
 
