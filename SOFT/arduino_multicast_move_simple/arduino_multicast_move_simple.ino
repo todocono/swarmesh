@@ -62,6 +62,8 @@ void setup()
   encoder2.numberTicks = 0;
   POS = (int*)malloc(sizeof(int) * 2);
   DST = (int*)malloc(sizeof(int) * 2);
+  DST[0] = -1;
+  DST[1] = -1;
   ID = "5";
   //  ORI = (int*)malloc(sizeof(int));
   if (WiFi.waitForConnectResult() != WL_CONNECTED) {
@@ -76,37 +78,44 @@ void setup()
       DynamicJsonDocument jInfo(1024);
       deserializeJson(jInfo, packet.data());
       const int Purpose = jInfo["Purpose"];
-      switch (Purpose) {
-        case 1:
-          Serial.println("Position received");
-          POS[0] = jInfo[ID][0][0];
-          POS[1] = jInfo[ID][0][1];
-          ORI = jInfo[ID][1];
-          break;
-        case 2:
-          if (!STATE){
+      if (STATE == 0) {
+        switch (Purpose) {
+          case 1:
+            Serial.println("Position received");
+            POS[0] = jInfo[ID][0][0];
+            POS[1] = jInfo[ID][0][1];
+            ORI = jInfo[ID][1];
+            Serial.println();
+            Serial.println(POS[0]);
+            Serial.println(POS[1]);
+            Serial.println();
+            if (DST[0] != -1){
+              actionDecoder(ORI, POS, DST);
+            }
+            break;
+          case 2:
             Serial.println("Tasks received");
             STATE = 1;
             dstSelector(ORI, POS, DST, jInfo);
             break;
-          } 
+        }
       }
       jInfo.clear();
     });
   }
   //  robot listening to tasks
-//  if (udp.listenMulticast(IPAddress(224, 3, 29, 2), 10002)) {
-//    udp.onPacket([](AsyncUDPPacket packet) {
-//      if (!STATE) {
-//        //        decode the packet only at idle STATE
-//        STATE = 1;
-//        DynamicJsonDocument jTask(1024);
-//        deserializeJson(jTask, packet.data());
-//        
-//        Serial.println("Task received");
-//      }
-//    });
-//  }
+  //  if (udp.listenMulticast(IPAddress(224, 3, 29, 2), 10002)) {
+  //    udp.onPacket([](AsyncUDPPacket packet) {
+  //      if (!STATE) {
+  //        //        decode the packet only at idle STATE
+  //        STATE = 1;
+  //        DynamicJsonDocument jTask(1024);
+  //        deserializeJson(jTask, packet.data());
+  //
+  //        Serial.println("Task received");
+  //      }
+  //    });
+  //  }
 }
 
 void loop() {
@@ -131,6 +140,7 @@ void dstSelector(int ORI, int* POS, int* DST, DynamicJsonDocument& jTask) {
     int x = jTask["Task"][i][0];
     int y = jTask["Task"][i][1];
     int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
+    Serial.println(new_dist);
     if (new_dist < dist) {
       dist = new_dist;
       idx = i;
@@ -138,11 +148,12 @@ void dstSelector(int ORI, int* POS, int* DST, DynamicJsonDocument& jTask) {
   }
   DST[0] = jTask["Task"][idx][0];
   DST[1] = jTask["Task"][idx][1];
-  Serial.print("DST[0]: ");
-  Serial.println(DST[0]);
-  Serial.print("DST[1]: ");
-  Serial.println(DST[1]);
-  actionDecoder(ORI, POS, DST);
+//  Serial.println(idx);
+//  Serial.print("DST[0]: ");
+//  Serial.println(DST[0]);
+//  Serial.print("DST[1]: ");
+//  Serial.println(DST[1]);
+//  actionDecoder(ORI, POS, DST);
   jTask.clear();
 }
 
