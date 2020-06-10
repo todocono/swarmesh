@@ -7,13 +7,15 @@
 #define PWMB 12
 #define DIRB 13
 #define PULSE 7
+//SET ACCORDING TO THE ARUCO CODE
 
-int STATE = 0;
 int* POS;
 int* DST;
 int ORI;
 int TURN;
 int DIST;
+int STATE = 0;
+const char* ID;
 
 struct Tick {
   const uint8_t PIN;
@@ -28,18 +30,16 @@ void IRAM_ATTR isr() {
   encoder1.numberTicks += 1;
   encoder1.tickOn = true;
 }
+
 void IRAM_ATTR isr2() {
   encoder2.numberTicks += 1;
   encoder2.tickOn = true;
 }
 
-//void turnRight(int* POS, int* );
-
 const char * ssid = "nowifi";
 const char * password = "durf2020";
 
 AsyncUDP udp;
-DynamicJsonDocument jPos(1024);
 
 void setup()
 {
@@ -62,6 +62,7 @@ void setup()
   encoder2.numberTicks = 0;
   POS = (int*)malloc(sizeof(int) * 2);
   DST = (int*)malloc(sizeof(int) * 2);
+  ID = "5";
   //  ORI = (int*)malloc(sizeof(int));
   if (WiFi.waitForConnectResult() != WL_CONNECTED) {
     Serial.println("WiFi Failed");
@@ -72,40 +73,33 @@ void setup()
   //  listening to both task and current position on this channel
   if (udp.listenMulticast(IPAddress(224, 3, 29, 1), 10001)) {
     udp.onPacket([](AsyncUDPPacket packet) {
-      if (STATE == 0) {
-        deserializeJson(jPos, packet.data());
-        POS[0] = jPos["POS"][0][0];
-        POS[1] = jPos["POS"][0][1];
-        DST[0] = jPos["Task"][0];
-        DST[1] = jPos["Task"][1];
-        ORI = jPos["POS"][1];
-        //        int ori = jPos["POS"][1];
-        //        Serial.println(ORI);
-        actionDecoder(POS, DST, ORI);
-        Serial.println("Packet received");
-      }
+      DynamicJsonDocument jPos(1024);
+      deserializeJson(jPos, packet.data());
+//      acquire current position of the robot according to the multicast
+      POS[0] = jPos[ID][0][0];
+      POS[1] = jPos[ID][0][1];
+      ORI = jPos[ID][1];
+//      actionDecoder(POS, DST, ORI);
+      jPos.clear();
+      Serial.println("Position received");
     });
   }
   //  robot listening to tasks
-  //  if (udp.listenMulticast(IPAddress(224, 3, 29, 2), 10002)){
-  //    udp.onPacket([](AsyncUDPPacket packet) {
-  //      if (!STATE){
-  ////        decode the packet at idle STATE
-  //        STATE = 1;
-  //        DynamicJsonDocument jTask(1024);
-  //        deserializeJson(jTask, packet.data());
-  //      }
-  //    });
-  //  }
+  if (udp.listenMulticast(IPAddress(224, 3, 29, 2), 10002)) {
+    udp.onPacket([](AsyncUDPPacket packet) {
+      if (!STATE) {
+        //        decode the packet only at idle STATE
+        STATE = 1;
+        DynamicJsonDocument jTask(1024);
+        deserializeJson(jTask, packet.data());
+        dstSelector(ORI, POS, DST, jTask);
+        Serial.println("Task received");
+      }
+    });
+  }
 }
 
 void loop() {
-  //  only calculate the path to the destination in STATE 1
-  // and the robot knows its current location
-  //  if (STATE == 1 && POS[0] >= 0){
-  //    int* num = dstSelector(POS, jTask);
-  //    int* dst = dstSelector(POS, jTask["Tasks"]);
-  //  }
   if (STATE == 1) {
     forward(1000);
   } else if (STATE == 2) {
@@ -115,35 +109,37 @@ void loop() {
   }
 }
 
-//void dstSelector(int* POS, int* DST, DynamicJsonDocument& jTask){
-////  const int* dst = jTask["Task"];
-//  int len = jTask["Num"];
-//  int idx = 0;
-//  const float x = jTask["Task"][0][0];
-//  const float y = jTask["Task"][0][1];
-//  int dist = (abs(x - POS[0]) + abs(y - POS[1]));
-//  for (int i = 0; i < len; i ++){
-//////  calc manhattan distance
-//    const float x = jTask["Task"][i][0];
-//    const float y = jTask["Task"][i][1];
-//    int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
-//    if (new_dist < dist){
-//      dist = new_dist;
-//      idx = i;
-//    }
-//  }
-//  DST[0] = jTask["Task"][idx][0];
-//  DST[1] = jTask["Task"][idx][1];
-//  jTask.clear();
-//}
+void dstSelector(int ORI, int* POS, int* DST, DynamicJsonDocument& jTask) {
+  //  const int* dst = jTask["Task"];
+  int x = jTask["Task"][0][0];
+  int y = jTask["Task"][0][1];
+  int idx = 0;
+  int dist = (abs(x - POS[0]) + abs(y - POS[1]));
+  const int len = jTask["Num"];
+  for (int i = 0; i < len; i ++) {
+    //  calc manhattan distance
+    int x = jTask["Task"][i][0];
+    int y = jTask["Task"][i][1];
+    int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
+    if (new_dist < dist) {
+      dist = new_dist;
+      idx = i;
+    }
+  }
+  DST[0] = jTask["Task"][idx][0];
+  DST[1] = jTask["Task"][idx][1];
+  Serial.print("DST[0]: ");
+  Serial.println(DST[0]);
+  Serial.print("DST[1]: ");
+  Serial.println(DST[1]);
+  actionDecoder(ORI, POS, DST);
+  jTask.clear();
+}
 
-void actionDecoder(int* POS, int* DST, int ORI) {
+void actionDecoder(int ORI, int* POS, int* DST) {
   //  calculate the robots' absolute position
   int x = DST[0] - POS[0];
   int y = DST[1] - POS[1];
-  Serial.println(x);
-  Serial.println(y);
-  Serial.println("#################");
   TURN = 90;
   if (abs(ORI) <= 5) {
     if (y >= 1) {
@@ -202,20 +198,12 @@ void actionDecoder(int* POS, int* DST, int ORI) {
       }
     }
   } else {
-    //    recalibrate itself with the normal vector of the map
-//    if (ORI >= 0) {
-//      STATE = 2;
-//      TURN = ORI;
-//    } else {
-//      STATE = 3;
-//      TURN = abs(ORI);
-//    }
     int remain = ORI % 90;
-    if (abs(remain) >= 45){
-      STATE = (remain < 0)? 2:3;
+    if (abs(remain) >= 45) {
+      STATE = (remain < 0) ? 2 : 3;
       TURN = 90 - abs(remain);
     } else {
-      STATE = (remain > 0)? 2:3;
+      STATE = (remain > 0) ? 2 : 3;
       TURN = abs(remain);
     }
   }
