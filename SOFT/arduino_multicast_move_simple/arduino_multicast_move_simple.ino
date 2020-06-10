@@ -73,30 +73,40 @@ void setup()
   //  listening to both task and current position on this channel
   if (udp.listenMulticast(IPAddress(224, 3, 29, 1), 10001)) {
     udp.onPacket([](AsyncUDPPacket packet) {
-      DynamicJsonDocument jPos(1024);
-      deserializeJson(jPos, packet.data());
-//      acquire current position of the robot according to the multicast
-      POS[0] = jPos[ID][0][0];
-      POS[1] = jPos[ID][0][1];
-      ORI = jPos[ID][1];
-//      actionDecoder(POS, DST, ORI);
-      jPos.clear();
-      Serial.println("Position received");
+      DynamicJsonDocument jInfo(1024);
+      deserializeJson(jInfo, packet.data());
+      const int Purpose = jInfo["Purpose"];
+      switch (Purpose) {
+        case 1:
+          Serial.println("Position received");
+          POS[0] = jInfo[ID][0][0];
+          POS[1] = jInfo[ID][0][1];
+          ORI = jInfo[ID][1];
+          break;
+        case 2:
+          if (!STATE){
+            Serial.println("Tasks received");
+            STATE = 1;
+            dstSelector(ORI, POS, DST, jInfo);
+            break;
+          } 
+      }
+      jInfo.clear();
     });
   }
   //  robot listening to tasks
-  if (udp.listenMulticast(IPAddress(224, 3, 29, 2), 10002)) {
-    udp.onPacket([](AsyncUDPPacket packet) {
-      if (!STATE) {
-        //        decode the packet only at idle STATE
-        STATE = 1;
-        DynamicJsonDocument jTask(1024);
-        deserializeJson(jTask, packet.data());
-        dstSelector(ORI, POS, DST, jTask);
-        Serial.println("Task received");
-      }
-    });
-  }
+//  if (udp.listenMulticast(IPAddress(224, 3, 29, 2), 10002)) {
+//    udp.onPacket([](AsyncUDPPacket packet) {
+//      if (!STATE) {
+//        //        decode the packet only at idle STATE
+//        STATE = 1;
+//        DynamicJsonDocument jTask(1024);
+//        deserializeJson(jTask, packet.data());
+//        
+//        Serial.println("Task received");
+//      }
+//    });
+//  }
 }
 
 void loop() {
