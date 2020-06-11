@@ -54,7 +54,8 @@ rt, mtx, dist, cam_rvecs, cam_tvecs = cam_calib()  # to run calibration
 # dist = np.array([1.043e-01, -1.524e-01, 1.3e-3, 1e-3, -1.15e-01])
 
 source = 0  # "http://ZDRM:12345678@10.209.31.55:8081" #0 or 1 for usb webcam
-# SOCK_POS, SOCK_TASK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+SOCK_POS = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+SOCK_TASK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 cap = cv.VideoCapture(source)
 cap.set(3, 1920)
 cap.set(4, 1080)

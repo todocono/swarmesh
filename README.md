@@ -19,3 +19,4 @@ To work with the IDE and latest version, you need:
 - ArduinoJson 6.12.0 (from Boards Manager)
 - TaskScheduler 3.0.2 (from Boards Manager, not really used)
 - AsyncTCP (manual install https://github.com/me-no-dev/AsyncTCP)
+- AsyncUDP (available in ESP32's arduino library)
