@@ -19,6 +19,152 @@ int DIST;
 int STATE = 0;
 const char *ID;
 
+class Destinations
+{
+  private:
+    int **_dst_lst;
+    int *_dst;
+    int *_init_pos;
+    int _lst_size;
+    void _del_dst_lst(int idx);
+
+  public:
+    Destinations();
+    void load_dst(DynamicJsonDocument &jTask, int ORI, int *POS);
+    void select_dst(int ORI, int *POS);
+    void proceed_dst(DynamicJsonDocument &jDst, int ORI, int *POS);
+    int* get_dst();
+    bool arrive_dst(int *POS, AsyncUDP udp);
+};
+
+Destinations::Destinations()
+{
+  int *_dst = (int *)malloc(sizeof(int) * 2);
+  int *_init_pos = (int *)malloc(sizeof(int) * 2);
+  *_dst = { -1};
+  *_init_pos = { -1};
+}
+
+void Destinations::_del_dst_lst(int idx)
+{
+  _dst[0] = _dst_lst[idx][0];
+  _dst[1] = _dst_lst[idx][1];
+  // swap the value at index with the last element
+  _dst_lst[idx][0] = _dst_lst[_lst_size - 1][0];
+  _dst_lst[idx][1] = _dst_lst[_lst_size - 1][1];
+  // modify _dst_lst and get rid of the smallest element
+  _lst_size--;
+  int **new_ptr = (int **)malloc(sizeof(int *) * (_lst_size));
+  for (int i = 0; i < _lst_size; i++)
+  {
+    for (int j = 0; j < 2; j++)
+    {
+      new_ptr[i][j] = _dst_lst[i][j];
+      free(_dst_lst[i]);
+    }
+  }
+  free(_dst_lst);
+  _dst_lst = new_ptr;
+}
+
+void Destinations::load_dst(DynamicJsonDocument &jTask, int ORI, int *POS)
+{
+  _init_pos[0] = POS[0];
+  _init_pos[1] = POS[1];
+  int _lst_size = jTask["Num"];
+  _dst_lst = (int **)malloc(sizeof(int *) * _lst_size);
+  // load json destination coordinates into the two-dimensional array
+  for (int i = 0; i < _lst_size; i++)
+  {
+    _dst_lst[i] = (int *)malloc(sizeof(int) * 2);
+    for (int j = 0; j < 2; j++)
+    {
+      _dst_lst[i][j] = jTask["Task"][i][j];
+    }
+  }
+  // automatically acquire the next destination by calling the function
+  select_dst(ORI, POS);
+}
+
+void Destinations::select_dst(int ORI, int *POS)
+{
+  // select the destination with the least manhattan distance
+  int x = _dst_lst[0][0];
+  int y = _dst_lst[0][1];
+  int idx = 0;
+  int dist = (abs(x - POS[0]) + abs(y - POS[1]));
+  for (int i = 0; i < _lst_size; i++)
+  {
+    x = _dst_lst[i][0];
+    y = _dst_lst[i][1];
+    int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
+    if (new_dist < dist)
+    {
+      dist = new_dist;
+      idx = i;
+    }
+  }
+  _del_dst_lst(idx);
+}
+
+void Destinations::proceed_dst(DynamicJsonDocument &jDst, int ORI, int *POS)
+{
+  if (_lst_size > 0)
+  {
+    // proceed to the next least distance point
+    int *dst = (int *)malloc(sizeof(int) * 2);
+    dst[0] = jDst["Pos"][0];
+    dst[1] = jDst["Pos"][1];
+    if (dst[0] == _dst[0] && dst[1] == _dst[1])
+    {
+      select_dst(ORI, POS);
+    }
+    else
+    {
+      // get the id of the element
+      int idx;
+      for (int i = 0; i < _lst_size; i++)
+      {
+        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1])
+        {
+          idx = i;
+        }
+      }
+      _del_dst_lst(idx);
+    }
+  }
+  else
+  {
+    // run out of available Destinations
+    // go back to original point
+    _dst = _init_pos;
+  }
+}
+
+int* Destinations::get_dst() {
+  int* new_ptr = (int*) malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i ++) new_ptr[i] = _dst[i];
+  return new_ptr;
+}
+
+bool Destinations::arrive_dst(int *POS, AsyncUDP udp)
+{
+  if (POS[0] == _dst[0] && POS[1] == _dst[1])
+  {
+    // send out udp indicating itself has arrived
+    //        StaticJsonDocument<200> doc;
+    //        JsonObject obj = doc.to<JsonObject>();
+    //        obj["Purpose"] = "Arrival";
+    //        obj["Pos"] = [POS[0], POS[1]];
+    const char *root = "hello there";
+    //        serializeJson(doc, root);
+    udp.writeTo((const uint8_t *)root, strlen(root), IPAddress(224, 3, 29, 1), 10001);
+    //        doc.clear();
+    return true;
+  }
+  return false;
+}
+
 struct Tick
 {
   const uint8_t PIN;
@@ -45,6 +191,7 @@ const char *ssid = "nowifi";
 const char *password = "durf2020";
 
 AsyncUDP udp;
+Destinations dst;
 
 void setup()
 {
@@ -66,9 +213,9 @@ void setup()
   encoder1.numberTicks = 0;
   encoder2.numberTicks = 0;
   POS = (int *)malloc(sizeof(int) * 2);
-  DST = (int *)malloc(sizeof(int) * 2);
-  DST[0] = -1;
-  DST[1] = -1;
+  //  DST = (int *)malloc(sizeof(int) * 2);
+  //  DST[0] = -1;
+  //  DST[1] = -1;
   ID = "5";
   //  ORI = (int*)malloc(sizeof(int));
   if (WiFi.waitForConnectResult() != WL_CONNECTED)
@@ -90,22 +237,23 @@ void setup()
       {
         switch (Purpose)
         {
-        case 1:
-          Serial.println("Position received");
-          POS[0] = jInfo[ID][0][0];
-          POS[1] = jInfo[ID][0][1];
-          ORI = jInfo[ID][1];
-          // move only if it has received tasks
-          if (DST[0] != -1)
-          {
-            actionDecoder(ORI, POS, DST);
-          }
-          break;
-        case 2:
-          Serial.println("Tasks received");
-          STATE = 1;
-          dstSelector(ORI, POS, DST, jInfo);
-          break;
+          case 1:
+            Serial.println("Position received");
+            POS[0] = jInfo[ID][0][0];
+            POS[1] = jInfo[ID][0][1];
+            ORI = jInfo[ID][1];
+            // move only if it has received tasks
+            if ((dst.get_dst())[0] != -1)
+            {
+              actionDecoder(ORI, POS, dst.get_dst());
+            }
+            break;
+          case 2:
+            Serial.println("Tasks received");
+            STATE = 1;
+            dst.load_dst(jInfo, ORI, POS);
+//            dstSelector(ORI, POS, DST, DST_LST, jInfo);
+            break;
         }
       }
       jInfo.clear();
@@ -129,30 +277,30 @@ void loop()
   }
 }
 
-void dstSelector(int ORI, int *POS, int *DST, int *DST_LST, DynamicJsonDocument &jTask)
-{
-  //  const int* dst = jTask["Task"];
-  int x = jTask["Task"][0][0];
-  int y = jTask["Task"][0][1];
-  int idx = 0;
-  int dist = (abs(x - POS[0]) + abs(y - POS[1]));
-  const int len = jTask["Num"];
-  for (int i = 0; i < len; i++)
-  {
-    //  calc manhattan distance
-    int x = jTask["Task"][i][0];
-    int y = jTask["Task"][i][1];
-    int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
-    Serial.println(new_dist);
-    if (new_dist < dist)
-    {
-      dist = new_dist;
-      idx = i;
-    }
-  }
-  DST[0] = jTask["Task"][idx][0];
-  DST[1] = jTask["Task"][idx][1];
-}
+//void dstSelector(int ORI, int *POS, int *DST, int *DST_LST, DynamicJsonDocument &jTask)
+//{
+//  //  const int* dst = jTask["Task"];
+//  int x = jTask["Task"][0][0];
+//  int y = jTask["Task"][0][1];
+//  int idx = 0;
+//  int dist = (abs(x - POS[0]) + abs(y - POS[1]));
+//  const int len = jTask["Num"];
+//  for (int i = 0; i < len; i++)
+//  {
+//    //  calc manhattan distance
+//    int x = jTask["Task"][i][0];
+//    int y = jTask["Task"][i][1];
+//    int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
+//    Serial.println(new_dist);
+//    if (new_dist < dist)
+//    {
+//      dist = new_dist;
+//      idx = i;
+//    }
+//  }
+//  DST[0] = jTask["Task"][idx][0];
+//  DST[1] = jTask["Task"][idx][1];
+//}
 
 void actionDecoder(int ORI, int *POS, int *DST)
 {
