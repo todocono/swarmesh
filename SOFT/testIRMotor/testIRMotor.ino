@@ -1,3 +1,11 @@
+//#include "WiFi.h"
+//#include "AsyncUDP.h"
+//
+//const char * ssid = "nowifi";
+//const char * password = "durf2020";
+//
+//AsyncUDP udp;
+
 #define PWMA 27
 #define DIRA 14
 #define PWMB 12
@@ -55,9 +63,30 @@ void setup() {
   Serial.begin(115200);
   encoder1.numberTicks = 0;
   encoder2.numberTicks = 0;
+//  WiFi.mode(WIFI_STA);
+//    WiFi.begin(ssid, password);
+//    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+//        Serial.println("WiFi Failed");
+//        while(1) {
+//            delay(1000);
+//        }
+//    }
+//    if(udp.listenMulticast(IPAddress(224,3,29,1), 10001)) {
+//        Serial.print("UDP Listening on IP: ");
+//        Serial.println(WiFi.localIP());
+//        udp.onPacket([](AsyncUDPPacket packet) {
+//            forward(1000);
+//            state = 1;
+//        });
+//        //Send multicast
+////        udp.print("Hello!");
+//    }
 }
 
 void loop() {
+//  if (state == 1){
+//    forward(1000);
+//  }
   // put your main code here, to run repeatedly:
   // use state machine
   // state 1
@@ -65,66 +94,66 @@ void loop() {
   // record distance and orientation
   // state 2
   // walk towards the objective
-  if (state == 0){
-    int total_val = 0;
-    motorA(0, 0);
-    motorB(0, 0);
-    for (int i = 0; i < 8; i ++) {
-      int pin1 = i & 0x001;
-      int pin2 = (i >> 1) & 0x001;
-      int pin3 = (i >> 2) & 0x001;
-      digitalWrite( MUXA, pin1);
-      digitalWrite( MUXB, pin2);
-      digitalWrite( MUXC, pin3);
-      delay(10);
-      int total = 0;
-      for (int j = 0; j < 64; j ++){
-        int res = analogRead(MUXI);
-        total += res;
-      }
-      
-      total /= 64;
-      total_val += total;
-      int num = pinCheck(i);
-      res[num] = total;
-    }
-    for (int i = 0; i < 8; i ++){
-      Serial.print(res[i]);
-      Serial.print(" ");
-    }
-    Serial.println();
-    // determine if the radiation is valid or not
-    if (total_val > 500){
-      // determine the orientation of the radiation
-      int max_read = 0;
-      int max_idx = 0;
-      for (int i = 0; i < 8; i ++){
-        if (res[i] > max_read){
-          max_read = res[i];
-          max_idx = i;
-        }
-      }
-      // calculate the angle
-      
-//      angle = (max_idx) * 45;
-//      Serial.println(angle);
-//      Serial.println("------------------------------------------------");
-////      state += 1;
+//  if (state == 0){
+//    int total_val = 0;
+//    motorA(0, 0);
+//    motorB(0, 0);
+//    for (int i = 0; i < 8; i ++) {
+//      int pin1 = i & 0x001;
+//      int pin2 = (i >> 1) & 0x001;
+//      int pin3 = (i >> 2) & 0x001;
+//      digitalWrite( MUXA, pin1);
+//      digitalWrite( MUXB, pin2);
+//      digitalWrite( MUXC, pin3);
 //      delay(10);
-    }
-  } else if (state == 1){
-    // move towards the target
-    if (angle >= 90 && angle <= 270){
-      turnLeft(angle - 90);
-    } else if (angle < 90){
-      turnRight(90 - angle);
-    } else {
-      turnRight(450 - angle);
-    }
-  } else if (state == 2){
-    // move forward
-    forward(1000);
-  }
+//      int total = 0;
+//      for (int j = 0; j < 64; j ++){
+//        int res = analogRead(MUXI);
+//        total += res;
+//      }
+//      
+//      total /= 64;
+//      total_val += total;
+//      int num = pinCheck(i);
+//      res[num] = total;
+//    }
+//    for (int i = 0; i < 8; i ++){
+//      Serial.print(res[i]);
+//      Serial.print(" ");
+//    }
+//    Serial.println();
+//    // determine if the radiation is valid or not
+//    if (total_val > 500){
+//      // determine the orientation of the radiation
+//      int max_read = 0;
+//      int max_idx = 0;
+//      for (int i = 0; i < 8; i ++){
+//        if (res[i] > max_read){
+//          max_read = res[i];
+//          max_idx = i;
+//        }
+//      }
+//      // calculate the angle
+//      
+////      angle = (max_idx) * 45;
+////      Serial.println(angle);
+////      Serial.println("------------------------------------------------");
+//////      state += 1;
+////      delay(10);
+//    }
+//  } else if (state == 1){
+//    // move towards the target
+//    if (angle >= 90 && angle <= 270){
+//      turnLeft(angle - 90);
+//    } else if (angle < 90){
+//      turnRight(90 - angle);
+//    } else {
+//      turnRight(450 - angle);
+//    }
+//  } else if (state == 2){
+//    // move forward
+//    forward(1000);
+//  }
 }
 
 int pinCheck(int num){
