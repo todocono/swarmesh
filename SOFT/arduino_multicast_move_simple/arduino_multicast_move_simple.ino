@@ -10,7 +10,8 @@
 //SET ACCORDING TO THE ARUCO CODE
 
 int *POS;
-// int* DST;
+int* DST;
+int* INIT;
 // int* DST_LST;
 int ORI;
 int TURN;
@@ -30,6 +31,7 @@ class Destinations
 
   public:
     Destinations();
+    void set_class(int* ptr_dst, int* ptr_init);
     void load_dst(DynamicJsonDocument &jTask, int ORI, int *POS);
     void select_dst(int ORI, int *POS);
     void proceed_dst(DynamicJsonDocument &jDst, int ORI, int *POS);
@@ -39,10 +41,16 @@ class Destinations
 
 Destinations::Destinations()
 {
-  int *_dst = (int *)malloc(sizeof(int) * 2);
-  int *_init_pos = (int *)malloc(sizeof(int) * 2);
-  *_dst = { -1};
-  *_init_pos = { -1};
+  int **_dst_lst;
+  int *_dst;
+  int *_init_pos;
+  int _lst_size;
+}
+
+void Destinations::set_class(int* ptr_dst, int* ptr_init) {
+  _dst = ptr_dst;
+  _init_pos = ptr_init;
+  Serial.println(_dst[0]);
 }
 
 void Destinations::_del_dst_lst(int idx)
@@ -71,8 +79,9 @@ void Destinations::load_dst(DynamicJsonDocument &jTask, int ORI, int *POS)
 {
   _init_pos[0] = POS[0];
   _init_pos[1] = POS[1];
-  int _lst_size = jTask["Num"];
+  _lst_size = jTask["Num"];
   _dst_lst = (int **)malloc(sizeof(int *) * _lst_size);
+  Serial.println("hi");
   // load json destination coordinates into the two-dimensional array
   for (int i = 0; i < _lst_size; i++)
   {
@@ -142,9 +151,14 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int ORI, int *POS)
 }
 
 int* Destinations::get_dst() {
-  int* new_ptr = (int*) malloc(sizeof(int) * 2);
-  for (int i = 0; i < 2; i ++) new_ptr[i] = _dst[i];
-  return new_ptr;
+  //  int* new_ptr = (int*) malloc(sizeof(int) * 2);
+  //  int x = _dst[0];
+  //  int y = _dst[1];
+  Serial.println(_dst[0]);
+  //  new_ptr[0] = x;
+  //  new_ptr[1] = y;
+  //
+  return _dst;
 }
 
 bool Destinations::arrive_dst(int *POS, AsyncUDP udp)
@@ -191,7 +205,7 @@ const char *ssid = "nowifi";
 const char *password = "durf2020";
 
 AsyncUDP udp;
-Destinations dst;
+Destinations dstc;
 
 void setup()
 {
@@ -213,9 +227,11 @@ void setup()
   encoder1.numberTicks = 0;
   encoder2.numberTicks = 0;
   POS = (int *)malloc(sizeof(int) * 2);
-  //  DST = (int *)malloc(sizeof(int) * 2);
-  //  DST[0] = -1;
-  //  DST[1] = -1;
+  DST = (int *)malloc(sizeof(int) * 2);
+  INIT = (int *)malloc(sizeof(int) * 2);
+  DST[0] = -1;
+  DST[1] = -1;
+  dstc.set_class(DST, INIT);
   ID = "5";
   //  ORI = (int*)malloc(sizeof(int));
   if (WiFi.waitForConnectResult() != WL_CONNECTED)
@@ -243,16 +259,16 @@ void setup()
             POS[1] = jInfo[ID][0][1];
             ORI = jInfo[ID][1];
             // move only if it has received tasks
-            if ((dst.get_dst())[0] != -1)
+            if ((dstc.get_dst())[0] != -1)
             {
-              actionDecoder(ORI, POS, dst.get_dst());
+              actionDecoder(ORI, POS, dstc.get_dst());
             }
             break;
           case 2:
             Serial.println("Tasks received");
             STATE = 1;
-            dst.load_dst(jInfo, ORI, POS);
-//            dstSelector(ORI, POS, DST, DST_LST, jInfo);
+            dstc.load_dst(jInfo, ORI, POS);
+            //            dstSelector(ORI, POS, DST, DST_LST, jInfo);
             break;
         }
       }
