@@ -165,12 +165,9 @@ int* Destinations::get_dst() {
 
 int Destinations::arrive_dst(int *POS)
 {
-  if (POS[0] == _dst[0] && POS[1] == _dst[1])
-  {
-    for (int i = 0; i < 2; i ++) _init_pos[i] = _dst[i];
-    for (int i = 0; i < 2; i ++) _dst[i] = -1;
-    return 1;
-  }
+  if (POS[0] == _dst[0] && POS[1] == _dst[1]) return 1;
+  //    for (int i = 0; i < 2; i ++) _init_pos[i] = _dst[i];
+  //    for (int i = 0; i < 2; i ++) _dst[i] = -1;
   return 0;
 }
 
@@ -205,7 +202,7 @@ Destinations dstc;
 void setup()
 {
   //  SET UP THE ID OF THE ROBOT HERE
-  ID = "3";
+  ID = "5";
   pinMode(PWMB, OUTPUT);
   pinMode(DIRB, OUTPUT);
   pinMode(DIRA, OUTPUT);
@@ -269,11 +266,12 @@ void setup()
         case 1:
           {
             Serial.println("Position received");
+            
+            //            not move if it can't get its position in json document
+            if (!jInfo[ID][0][0] && !jInfo[ID][0][1]) break;
             POS[0] = jInfo[ID][0][0];
             POS[1] = jInfo[ID][0][1];
             ORI = jInfo[ID][1];
-            //            not move if it can't get its position in json document
-            if (!POS[1] && !POS[0]) break;
             // move only if it has received tasks
             int* ptr = dstc.get_dst();
             int arrive = dstc.arrive_dst(POS);
@@ -296,7 +294,6 @@ void setup()
               Pos.add(POS[1]);
               serializeJson(doc, jsonStr);
               doc.clear();
-              //              multicast json file to other robots
               udp.writeTo((const uint8_t*) jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
             }
             free(ptr);
@@ -310,9 +307,10 @@ void setup()
         case 3:
           //        other robots have arrived at their destinations
           //        need to check whether the destinations are the same as its own destination
-          dstc.proceed_dst(jInfo, POS);
-      }
-      jInfo.clear();
+          //        move only when it self is not at the 
+          if (!dstc.arrive_dst(POS)) dstc.proceed_dst(jInfo, POS);
+        }
+    jInfo.clear();
 
     });
   }
@@ -529,8 +527,8 @@ void turnLeft(int deg)
     //      motorA (0, 0);
     //      motorB (100, 1);
     //    } else {
-    motorA(200, 0);
-    motorB(200, 1);
+    motorA(100, 0);
+    motorB(100, 1);
     //    }
   }
   else
@@ -554,8 +552,8 @@ void turnRight(int deg)
     //        motorA (0, 0);
     //        motorB (100, 0);
     //      } else {
-    motorA(200, 1);
-    motorB(200, 0);
+    motorA(100, 1);
+    motorB(100, 0);
     //      }
   }
   else
