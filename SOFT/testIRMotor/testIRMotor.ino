@@ -1,3 +1,11 @@
+//#include "WiFi.h"
+//#include "AsyncUDP.h"
+//
+//const char * ssid = "nowifi";
+//const char * password = "durf2020";
+//
+//AsyncUDP udp;
+
 #define PWMA 27
 #define DIRA 14
 #define PWMB 12
@@ -55,16 +63,30 @@ void setup() {
   Serial.begin(115200);
   encoder1.numberTicks = 0;
   encoder2.numberTicks = 0;
+//  WiFi.mode(WIFI_STA);
+//    WiFi.begin(ssid, password);
+//    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+//        Serial.println("WiFi Failed");
+//        while(1) {
+//            delay(1000);
+//        }
+//    }
+//    if(udp.listenMulticast(IPAddress(224,3,29,1), 10001)) {
+//        Serial.print("UDP Listening on IP: ");
+//        Serial.println(WiFi.localIP());
+//        udp.onPacket([](AsyncUDPPacket packet) {
+//            forward(1000);
+//            state = 1;
+//        });
+//        //Send multicast
+////        udp.print("Hello!");
+//    }
 }
 
 void loop() {
-////////////////////////////10CM = 1000 TURNS////////////////////////////
-  if (state == 0){
-    forward(1000);
-  } else if (state == 1){
-    turnLeft(90);
-  }
-  
+//  if (state == 1){
+//    forward(1000);
+//  }
   // put your main code here, to run repeatedly:
   // use state machine
   // state 1
@@ -152,14 +174,14 @@ void turnRight(int deg) {
   int num = deg / 45;
   if (encoder1.numberTicks <= PULSE * num) {
        if ( encoder1.numberTicks > encoder2.numberTicks) {
-        motorA (255, 1);
+        motorA (100, 1);
         motorB (0, 0);
        } else if ( encoder1.numberTicks < encoder2.numberTicks){
         motorA (0, 0);
-        motorB (255, 0);
+        motorB (100, 0);
       } else {
-        motorA(255, 1);
-        motorB(255, 0);
+        motorA(100, 1);
+        motorB(100, 0);
       }
        Serial.printf("Motor 1: %d", encoder1.numberTicks);
        Serial.printf("Motor 2: %d", encoder2.numberTicks);
@@ -175,11 +197,12 @@ void turnRight(int deg) {
 
 void forward(int dist) {
   if (encoder1.numberTicks < dist){
-    if (dist - encoder1.numberTicks <= 1000){
-      int SPD = 0.5 * (dist - encoder1.numberTicks);
-      SPD = map(SPD, 0, 1000 * 0.5, 200, 255);
-      motorA(SPD, 0);
-      motorB(SPD, 0);
+    if ( encoder1.numberTicks > encoder2.numberTicks) {
+      motorA (200, 0);
+      motorB (0, 0);
+    } else if ( encoder1.numberTicks < encoder2.numberTicks) {
+      motorA (0, 0);
+      motorB (200, 0);
     } else {
       motorA(200, 0);
       motorB(200, 0);
@@ -192,7 +215,7 @@ void forward(int dist) {
     motorB(0, 0);
     encoder1.numberTicks = 0;
     encoder2.numberTicks = 0;
-    state = 1;
+    state = 0;
   }
 }
 
@@ -200,21 +223,21 @@ void turnLeft(int deg) {
   int num = deg / 45;
   if (encoder1.numberTicks <= PULSE * num) {
     if ( encoder1.numberTicks > encoder2.numberTicks) {
-      motorA (255, 0);
+      motorA (100, 0);
       motorB (0, 0);
     } else if ( encoder1.numberTicks < encoder2.numberTicks) {
       motorA (0, 0);
-      motorB (255, 1);
+      motorB (100, 1);
     } else {
-      motorA(255, 0);
-      motorB(255, 1);
+      motorA(100, 0);
+      motorB(100, 1);
     }
   } else {
     motorA(0, 0);
     motorB(0, 0);
     encoder1.numberTicks = 0;
     encoder2.numberTicks = 0;
-    state = 0;
+    state = 2;
   }
   Serial.printf("Motor 1: %d", encoder1.numberTicks);
   Serial.printf("Motor 2: %d", encoder2.numberTicks);
