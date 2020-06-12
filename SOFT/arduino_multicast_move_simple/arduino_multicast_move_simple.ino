@@ -1,3 +1,7 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////THE ID OF THE ROBOT NEEDS TO BE SET ACCORDING TO THE ARUCO CODE IT CARRIES/////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #include <ArduinoJson.h>
 #include "WiFi.h"
 #include "AsyncUDP.h"
@@ -10,13 +14,9 @@
 //SET ACCORDING TO THE ARUCO CODE
 
 int *POS;
-int* DST;
-int* INIT;
-// int* DST_LST;
 int ORI;
 int TURN;
 int DIST;
-// int PTR;
 int STATE = 0;
 const char *ID;
 
@@ -31,12 +31,12 @@ class Destinations
 
   public:
     Destinations();
-    void set_class(int* ptr_dst, int* ptr_init);
-    void load_dst(DynamicJsonDocument &jTask, int ORI, int *POS);
-    void select_dst(int ORI, int *POS);
-    void proceed_dst(DynamicJsonDocument &jDst, int ORI, int *POS);
+    void set_class();
+    void load_dst(DynamicJsonDocument &jTask, int *POS);
+    void select_dst(int *POS);
+    void proceed_dst(DynamicJsonDocument &jDst, int *POS);
     int* get_dst();
-    bool arrive_dst(int *POS, AsyncUDP udp);
+    int arrive_dst(int *POS);
 };
 
 Destinations::Destinations()
@@ -47,10 +47,10 @@ Destinations::Destinations()
   int _lst_size;
 }
 
-void Destinations::set_class(int* ptr_dst, int* ptr_init) {
-  _dst = ptr_dst;
-  _init_pos = ptr_init;
-  Serial.println(_dst[0]);
+void Destinations::set_class() {
+  _dst = (int *)malloc(sizeof(int) * 2);
+  _init_pos = (int *)malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i ++) _dst[i] = -1;
 }
 
 void Destinations::_del_dst_lst(int idx)
@@ -65,20 +65,26 @@ void Destinations::_del_dst_lst(int idx)
   int **new_ptr = (int **)malloc(sizeof(int *) * (_lst_size));
   for (int i = 0; i < _lst_size; i++)
   {
+    new_ptr[i] = (int *)malloc(sizeof(int) * 2);
     for (int j = 0; j < 2; j++)
     {
       new_ptr[i][j] = _dst_lst[i][j];
-      free(_dst_lst[i]);
     }
+    free(_dst_lst[i]);
   }
   free(_dst_lst);
   _dst_lst = new_ptr;
 }
 
-void Destinations::load_dst(DynamicJsonDocument &jTask, int ORI, int *POS)
+void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
 {
   _init_pos[0] = POS[0];
   _init_pos[1] = POS[1];
+  Serial.print("Initial Pos: ");
+  Serial.print(_init_pos[0]);
+  Serial.print("  ");
+  Serial.print(_init_pos[1]);
+  Serial.println();
   _lst_size = jTask["Num"];
   _dst_lst = (int **)malloc(sizeof(int *) * _lst_size);
   Serial.println("hi");
@@ -92,10 +98,10 @@ void Destinations::load_dst(DynamicJsonDocument &jTask, int ORI, int *POS)
     }
   }
   // automatically acquire the next destination by calling the function
-  select_dst(ORI, POS);
+  select_dst(POS);
 }
 
-void Destinations::select_dst(int ORI, int *POS)
+void Destinations::select_dst(int *POS)
 {
   // select the destination with the least manhattan distance
   int x = _dst_lst[0][0];
@@ -116,7 +122,7 @@ void Destinations::select_dst(int ORI, int *POS)
   _del_dst_lst(idx);
 }
 
-void Destinations::proceed_dst(DynamicJsonDocument &jDst, int ORI, int *POS)
+void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
 {
   if (_lst_size > 0)
   {
@@ -126,7 +132,7 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int ORI, int *POS)
     dst[1] = jDst["Pos"][1];
     if (dst[0] == _dst[0] && dst[1] == _dst[1])
     {
-      select_dst(ORI, POS);
+      select_dst(POS);
     }
     else
     {
@@ -146,37 +152,26 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int ORI, int *POS)
   {
     // run out of available Destinations
     // go back to original point
-    _dst = _init_pos;
+    Serial.println("Going back");
+    for (int i = 0; i < 2; i ++) _dst[i] = _init_pos[i];
   }
 }
 
 int* Destinations::get_dst() {
-  //  int* new_ptr = (int*) malloc(sizeof(int) * 2);
-  //  int x = _dst[0];
-  //  int y = _dst[1];
-  Serial.println(_dst[0]);
-  //  new_ptr[0] = x;
-  //  new_ptr[1] = y;
-  //
-  return _dst;
+  int* new_ptr = (int*) malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i ++) new_ptr[i] = _dst[i];
+  return new_ptr;
 }
 
-bool Destinations::arrive_dst(int *POS, AsyncUDP udp)
+int Destinations::arrive_dst(int *POS)
 {
   if (POS[0] == _dst[0] && POS[1] == _dst[1])
   {
-    // send out udp indicating itself has arrived
-    //        StaticJsonDocument<200> doc;
-    //        JsonObject obj = doc.to<JsonObject>();
-    //        obj["Purpose"] = "Arrival";
-    //        obj["Pos"] = [POS[0], POS[1]];
-    const char *root = "hello there";
-    //        serializeJson(doc, root);
-    udp.writeTo((const uint8_t *)root, strlen(root), IPAddress(224, 3, 29, 1), 10001);
-    //        doc.clear();
-    return true;
+    for (int i = 0; i < 2; i ++) _init_pos[i] = _dst[i];
+    for (int i = 0; i < 2; i ++) _dst[i] = -1;
+    return 1;
   }
-  return false;
+  return 0;
 }
 
 struct Tick
@@ -209,6 +204,8 @@ Destinations dstc;
 
 void setup()
 {
+  //  SET UP THE ID OF THE ROBOT HERE
+  ID = "3";
   pinMode(PWMB, OUTPUT);
   pinMode(DIRB, OUTPUT);
   pinMode(DIRA, OUTPUT);
@@ -227,13 +224,7 @@ void setup()
   encoder1.numberTicks = 0;
   encoder2.numberTicks = 0;
   POS = (int *)malloc(sizeof(int) * 2);
-  DST = (int *)malloc(sizeof(int) * 2);
-  INIT = (int *)malloc(sizeof(int) * 2);
-  DST[0] = -1;
-  DST[1] = -1;
-  dstc.set_class(DST, INIT);
-  ID = "5";
-  //  ORI = (int*)malloc(sizeof(int));
+  dstc.set_class();
   if (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
     Serial.println("WiFi Failed");
@@ -249,30 +240,80 @@ void setup()
       DynamicJsonDocument jInfo(1024);
       deserializeJson(jInfo, packet.data());
       const int Purpose = jInfo["Purpose"];
-      if (STATE == 0)
+      //      if (STATE == 0)
+      //      {
+      //        if (Purpose == 1) {
+      //          Serial.println("Position received");
+      //          POS[0] = jInfo[ID][0][0];
+      //          POS[1] = jInfo[ID][0][1];
+      //          ORI = jInfo[ID][1];
+      //          // move only if it has received tasks
+      //          //             && dstc.arrive_dst(POS, udp) == 0
+      //          int* ptr = dstc.get_dst();
+      //          int arrive = dstc.arrive_dst(POS);
+      //          if (ptr[0] != -1 && !arrive)
+      //          {
+      //            actionDecoder(ORI, POS, ptr);
+      //          } else if (arrive) {
+      //            udp.broadcast("arrived");
+      //          }
+      //          free(ptr);
+      //        } else if (Purpose == 2) {
+      //          Serial.println("Tasks received");
+      //          STATE = 1;
+      //          dstc.load_dst(jInfo, ORI, POS);
+      //          //            dstSelector(ORI, POS, DST, DST_LST, jInfo);
+      //        }
+      switch (Purpose)
       {
-        switch (Purpose)
-        {
-          case 1:
+        case 1:
+          {
             Serial.println("Position received");
             POS[0] = jInfo[ID][0][0];
             POS[1] = jInfo[ID][0][1];
             ORI = jInfo[ID][1];
+            //            not move if it can't get its position in json document
+            if (!POS[1] && !POS[0]) break;
             // move only if it has received tasks
-            if ((dstc.get_dst())[0] != -1)
+            int* ptr = dstc.get_dst();
+            int arrive = dstc.arrive_dst(POS);
+            Serial.println(ptr[0]);
+            Serial.println(ptr[1]);
+            Serial.println();
+            if (ptr[0] != -1 && !arrive)
             {
-              actionDecoder(ORI, POS, dstc.get_dst());
+              actionDecoder(ORI, POS, ptr);
             }
-            break;
-          case 2:
-            Serial.println("Tasks received");
-            STATE = 1;
-            dstc.load_dst(jInfo, ORI, POS);
-            //            dstSelector(ORI, POS, DST, DST_LST, jInfo);
-            break;
-        }
+            else if (arrive)
+            {
+              char jsonStr[80];
+              //              jsonCreator(jsonStr);
+              const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
+              DynamicJsonDocument doc(capacity);
+              doc["Purpose"] = 3;
+              JsonArray Pos = doc.createNestedArray("Pos");
+              Pos.add(POS[0]);
+              Pos.add(POS[1]);
+              serializeJson(doc, jsonStr);
+              doc.clear();
+              //              multicast json file to other robots
+              udp.writeTo((const uint8_t*) jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+            }
+            free(ptr);
+          }
+          break;
+        case 2:
+          Serial.println("Tasks received");
+          STATE = 1;
+          dstc.load_dst(jInfo, POS);
+          break;
+        case 3:
+          //        other robots have arrived at their destinations
+          //        need to check whether the destinations are the same as its own destination
+          dstc.proceed_dst(jInfo, POS);
       }
       jInfo.clear();
+
     });
   }
 }
@@ -316,6 +357,17 @@ void loop()
 //  }
 //  DST[0] = jTask["Task"][idx][0];
 //  DST[1] = jTask["Task"][idx][1];
+//}
+
+//void jsonCreator(char* jsonStr) {
+//  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
+//  DynamicJsonDocument doc(capacity);
+//  doc["Purpose"] = 3;
+//  JsonArray Pos = doc.createNestedArray("Pos");
+//  Pos.add(POS[0]);
+//  Pos.add(POS[1]);
+//  serializeJson(doc, jsonStr);
+//  doc.clear();
 //}
 
 void actionDecoder(int ORI, int *POS, int *DST)
@@ -477,8 +529,8 @@ void turnLeft(int deg)
     //      motorA (0, 0);
     //      motorB (100, 1);
     //    } else {
-    motorA(100, 0);
-    motorB(100, 1);
+    motorA(200, 0);
+    motorB(200, 1);
     //    }
   }
   else
@@ -502,8 +554,8 @@ void turnRight(int deg)
     //        motorA (0, 0);
     //        motorB (100, 0);
     //      } else {
-    motorA(100, 1);
-    motorB(100, 0);
+    motorA(200, 1);
+    motorB(200, 0);
     //      }
   }
   else
