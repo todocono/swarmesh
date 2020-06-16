@@ -55,13 +55,15 @@ void Destinations::set_class() {
 
 void Destinations::_del_dst_lst(int idx)
 {
-  _dst[0] = _dst_lst[idx][0];
-  _dst[1] = _dst_lst[idx][1];
+  //  _dst[0] = _dst_lst[idx][0];
+  //  _dst[1] = _dst_lst[idx][1];
   // swap the value at index with the last element
   _dst_lst[idx][0] = _dst_lst[_lst_size - 1][0];
   _dst_lst[idx][1] = _dst_lst[_lst_size - 1][1];
   // modify _dst_lst and get rid of the smallest element
   _lst_size--;
+  Serial.print("Reduced List Size: ");
+  Serial.println(_lst_size);
   int **new_ptr = (int **)malloc(sizeof(int *) * (_lst_size));
   for (int i = 0; i < _lst_size; i++)
   {
@@ -78,16 +80,11 @@ void Destinations::_del_dst_lst(int idx)
 
 void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
 {
-  _init_pos[0] = POS[0];
-  _init_pos[1] = POS[1];
-  Serial.print("Initial Pos: ");
-  Serial.print(_init_pos[0]);
-  Serial.print("  ");
-  Serial.print(_init_pos[1]);
-  Serial.println();
+  for (int i = 0; i < 2; i ++) _init_pos[i] = POS[i];
   _lst_size = jTask["Num"];
+  Serial.print("Task size: ");
+  Serial.println(_lst_size);
   _dst_lst = (int **)malloc(sizeof(int *) * _lst_size);
-  Serial.println("hi");
   // load json destination coordinates into the two-dimensional array
   for (int i = 0; i < _lst_size; i++)
   {
@@ -119,17 +116,19 @@ void Destinations::select_dst(int *POS)
       idx = i;
     }
   }
+  for (int i = 0; i < 2; i ++) _dst[i] = _dst_lst[idx][i];
   _del_dst_lst(idx);
 }
 
 void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
 {
+  int *dst = (int *)malloc(sizeof(int) * 2);
+  dst[0] = jDst["Pos"][0];
+  dst[1] = jDst["Pos"][1];
+  Serial.println(_lst_size);
   if (_lst_size > 0)
   {
     // proceed to the next least distance point
-    int *dst = (int *)malloc(sizeof(int) * 2);
-    dst[0] = jDst["Pos"][0];
-    dst[1] = jDst["Pos"][1];
     if (dst[0] == _dst[0] && dst[1] == _dst[1])
     {
       select_dst(POS);
@@ -137,23 +136,24 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
     else
     {
       // get the id of the element
-      int idx;
+      int idx = -1;
       for (int i = 0; i < _lst_size; i++)
       {
-        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1])
-        {
-          idx = i;
-        }
+        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1]) idx = i;
+        Serial.println("matched");
       }
-      _del_dst_lst(idx);
+      //      filter out destination of robots going back to their origin
+      if (idx >= 0) _del_dst_lst(idx);
     }
   }
   else
   {
     // run out of available Destinations
     // go back to original point
-    Serial.println("Going back");
-    for (int i = 0; i < 2; i ++) _dst[i] = _init_pos[i];
+    //    only doing so when the last destination conflicts the destination taken by others
+    if (dst[0] == _dst[0] && dst[1] == _dst[1]) {
+      for (int i = 0; i < 2; i ++) _dst[i] = _init_pos[i];
+    }
   }
 }
 
@@ -166,8 +166,6 @@ int* Destinations::get_dst() {
 int Destinations::arrive_dst(int *POS)
 {
   if (POS[0] == _dst[0] && POS[1] == _dst[1]) return 1;
-  //    for (int i = 0; i < 2; i ++) _init_pos[i] = _dst[i];
-  //    for (int i = 0; i < 2; i ++) _dst[i] = -1;
   return 0;
 }
 
@@ -237,36 +235,12 @@ void setup()
       DynamicJsonDocument jInfo(1024);
       deserializeJson(jInfo, packet.data());
       const int Purpose = jInfo["Purpose"];
-      //      if (STATE == 0)
-      //      {
-      //        if (Purpose == 1) {
-      //          Serial.println("Position received");
-      //          POS[0] = jInfo[ID][0][0];
-      //          POS[1] = jInfo[ID][0][1];
-      //          ORI = jInfo[ID][1];
-      //          // move only if it has received tasks
-      //          //             && dstc.arrive_dst(POS, udp) == 0
-      //          int* ptr = dstc.get_dst();
-      //          int arrive = dstc.arrive_dst(POS);
-      //          if (ptr[0] != -1 && !arrive)
-      //          {
-      //            actionDecoder(ORI, POS, ptr);
-      //          } else if (arrive) {
-      //            udp.broadcast("arrived");
-      //          }
-      //          free(ptr);
-      //        } else if (Purpose == 2) {
-      //          Serial.println("Tasks received");
-      //          STATE = 1;
-      //          dstc.load_dst(jInfo, ORI, POS);
-      //          //            dstSelector(ORI, POS, DST, DST_LST, jInfo);
-      //        }
       switch (Purpose)
       {
         case 1:
           {
             Serial.println("Position received");
-            
+
             //            not move if it can't get its position in json document
             if (!jInfo[ID][0][0] && !jInfo[ID][0][1]) break;
             POS[0] = jInfo[ID][0][0];
@@ -307,10 +281,10 @@ void setup()
         case 3:
           //        other robots have arrived at their destinations
           //        need to check whether the destinations are the same as its own destination
-          //        move only when it self is not at the 
+          //        move only when it self is not at the destination
           if (!dstc.arrive_dst(POS)) dstc.proceed_dst(jInfo, POS);
-        }
-    jInfo.clear();
+      }
+      jInfo.clear();
 
     });
   }
