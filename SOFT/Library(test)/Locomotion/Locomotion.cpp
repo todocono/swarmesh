@@ -79,58 +79,61 @@ const uint8_t Motor::get_pin()
   return _PIN;
 }
 
-Locomotion::Locomotion(Encoder encoder1, Encoder encoder2):
-  _motor1(encoder1, 27, 14, 1),
-  _motor2(encoder2, 12, 13, 2)
+Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1, 27, 14, 1),
+                                                               _motor2(encoder2, 12, 13, 2)
 {
   _PULSE = 7;
 }
 
-void Locomotion::_forward(int dist)
+int Locomotion::forward(int dist)
 {
-  if (encoder1.numberTicks < dist)
+  Serial.println(_motor1.get_tick());
+  if (_motor1.get_tick() < dist)
   {
-    if (encoder1.numberTicks > encoder2.numberTicks)
-    {
-      _motor1.motor_move(200, 0);
-      _motor2.motor_move(0, 0);
-    }
-    else if (encoder1.numberTicks < encoder2.numberTicks)
-    {
-      _motor1.motor_move(0, 0);
-      _motor2.motor_move(200, 0);
-    }
-    else
-    {
-      _motor1.motor_move(200, 0);
-      _motor2.motor_move(200, 0);
-    }
+    _motor1.motor_move(200, 0);
+    _motor2.motor_move(200, 0);
+    //    if (_motor1.get_tick() > _motor2.get_tick())
+    //    {
+    //      _motor1.motor_move(200, 0);
+    //      _motor2.motor_move(0, 0);
+    //    }
+    //    else if (_motor1.get_tick() < _motor2.get_tick())
+    //    {
+    //      _motor1.motor_move(0, 0);
+    //      _motor2.motor_move(200, 0);
+    //    }
+    //    else
+    //    {
+    //      _motor1.motor_move(200, 0);
+    //      _motor2.motor_move(200, 0);
+    //    }
+    return 0;
   }
   else
   {
-    for (int i = 0; i < 2; i++) _motors[i].motor_stop();
-    // _motor2.motor_move(0, 0);
-    // STATE = 0;
+    for (int i = 0; i < 2; i++)
+      _motors[i].motor_stop();
+    return 1;
   }
 }
 
-void Locomotion::_turn(int deg, char dir)
+int Locomotion::turn(int deg, char dir)
 {
   int num1;
   int num2;
   switch (dir)
   {
-    case 'L':
-      num1 = 0;
-      num2 = 1;
-      break;
+  case 'L':
+    num1 = 0;
+    num2 = 1;
+    break;
 
-    case 'R':
-      num1 = 1;
-      num2 = 0;
-      break;
+  case 'R':
+    num1 = 1;
+    num2 = 0;
+    break;
   }
-  if (encoder1.numberTicks <= _PULSE * deg)
+  if (_motor1.get_tick() <= _PULSE * deg)
   {
     //    if ( encoder1.numberTicks > encoder2.numberTicks) {
     //      motorA (100, 0);
@@ -142,10 +145,13 @@ void Locomotion::_turn(int deg, char dir)
     _motor1.motor_move(100, num1);
     _motor2.motor_move(100, num2);
     //    }
+    return 0;
   }
   else
   {
-    for (int i = 0; i < 2; i++) _motors[i].motor_stop();
+    for (int i = 0; i < 2; i++)
+      _motors[i].motor_stop();
+    return 1;
     // STATE = 0;
   }
 }
@@ -160,8 +166,11 @@ void Locomotion::motor_init()
     pinMode(_motors[i].get_pwm(), OUTPUT);
     pinMode(_motors[i].get_dir(), OUTPUT);
     pinMode(_motors[i].get_pin(), INPUT_PULLUP);
-    if (i) attachInterrupt(_motors[i].get_pin(), isr1, FALLING);
-    else attachInterrupt(_motors[i].get_pin(), isr2, FALLING);
+    //    attachInterrupt(_motors[i].get_pin(), _motors[i].isr(), FALLING);
+    if (i)
+      attachInterrupt(_motors[i].get_pin(), isr1, FALLING);
+    else
+      attachInterrupt(_motors[i].get_pin(), isr2, FALLING);
     ledcAttachPin(_motors[i].get_pwm(), _motors[i].get_idx());
     ledcSetup(_motors[i].get_idx(), 12000, 8);
   }

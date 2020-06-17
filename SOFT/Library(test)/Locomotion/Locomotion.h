@@ -1,5 +1,5 @@
 /*
-Locomotion.h - Library for Swarmesh
+Locomotion.h - Library for Swarmesh - Created on 6/16/20
 
 Before constructing class, create two instances of Encoders and pass 
 their ADDRESSES into Locomotion's constructor
@@ -8,10 +8,8 @@ Need to figure out a way to pass the interrupt function into the
 motor_init() function
 */
 
-
 #ifndef Locomotion_h
 #define Locomotion_h
-
 #include "Arduino.h"
 
 struct Encoder;
@@ -47,10 +45,11 @@ private:
     Motor _motor2;
     Motor *_motors;
     int _PULSE;
-    void _forward(int dist);
-    void _turn(int deg, char dir);
+
 public:
     Locomotion(Encoder *encoder1, Encoder *encoder2);
+    int turn(int deg, char dir);
+    int forward(int dist);
     void motor_init();
 };
 
