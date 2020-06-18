@@ -50,7 +50,7 @@ void Driver::run()
 {
   // const double *RotationValues = translationField->getSFRotation();
   // cout << RotationValues[3] << endl;
-  string message("");
+  string message("1 3 ");
   int numsX[3]; // 3(num of robots) random x-coordinates for dst
   int numsZ[3]; // 3(num of robots) random z-coordinates for dst
   srand(time(0));
@@ -71,6 +71,7 @@ void Driver::run()
       message.append(" ");
     
   }
+
    // send actuators commands; send a new message through the emitter device
    cout << "Random points are: " << message.c_str() << endl;
    emitter->send(message.c_str(), (int)strlen(message.c_str()) + 1);

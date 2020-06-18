@@ -10,49 +10,56 @@
 #include <webots/Node.hpp>
 #include <webots/Supervisor.hpp>
 #include <webots/Compass.hpp>
-// #include <webots/Emitter.hpp>
+#include <webots/Emitter.hpp>
 
 #include <algorithm>
 #include <iostream>
 #include <limits>
 #include <string>
-#incldue <cmath>
+#include <cmath>
+#include <time.h>
+#include <cstring>
 
 using namespace std;
 using namespace webots;
 
-static const double maxSpeed = 10.0;
-int *POS;
-int *ORI;
-const string *ID;
-const double = 3.14159;
+static const double maxSpeed = 4.0;
+int* POS;
+int ORI;
+int TURN;
+int DIST;
+int STATE = 0; //0-STOP; 1-MOVE_FORWARD; 2-LEFT; 3-RIGHT;
+// const string *ID;
+const double pi = 3.14159;
 
 class Slave : public Robot {
 public:
     Slave();
     void set_class();
-    void load_dst(DynamicJsonDocument& jTask, int* POS);
+    void actionDecoder(int ORI, int* POS, int* DST);
+    void load_dst(string jTask, int* POS);
     void select_dst(int* POS);
-    void proceed_dst(DynamicJsonDocument& jDst, int* POS);
+    void proceed_dst(string jDst, int* POS);
     int* get_dst();
     int arrive_dst(int* POS);
     void run();
 
 private:
-    enum Mode { STOP, TURN, MOVE_FORWARD, AVOID_OBSTACLES };
+    //enum Mode { MOVE_FORWARD, TURNLEFT, TURNRIGHT, STOP } // AVOID_OBSTACLES
 
     static double boundSpeed(double speed);
 
     int timeStep;
     long timeTime;
+    double encoder;
 
-    float* _init_pos;
+    int* _init_pos;
     int* _dst;
     int** _dst_lst;
     int _lst_size;
     void _del_dst_lst(int idx);
 
-    Mode mode;
+    //Mode mode;
     Receiver* receiver;
     Camera* camera;
     DistanceSensor* distanceSensors[2];
@@ -62,13 +69,13 @@ private:
     InertialUnit* iu;
     Field* translationField;
     Compass* cp;
-    // Emitter *emitter;
+    Emitter* emitter;
 };
 
 Slave::Slave() {
     timeStep = 32;
     timeTime = 32;
-    mode = STOP;
+    //mode = STOP;
 
     gp = getGPS("global");
     gp->enable(timeStep);
@@ -78,6 +85,8 @@ Slave::Slave() {
 
     cp = getCompass("cp");
     cp->enable(timeStep);
+
+    emitter = getEmitter("emitter");
 
     camera = getCamera("camera");
     camera->enable(4 * timeStep);
@@ -95,6 +104,8 @@ Slave::Slave() {
     ps[0]->enable(timeStep);
     ps[1]->enable(timeStep);
 
+    encoder = ps[0]->getValue();
+
     string distanceSensorNames("ds0");
     for (int i = 0; i < 2; i++) {
         distanceSensors[i] = getDistanceSensor(distanceSensorNames);
@@ -107,7 +118,6 @@ double Slave::boundSpeed(double speed) {
     return std::min(maxSpeed, std::max(-maxSpeed, speed));
 }
 
-
 void Slave::set_class()
 {
     _dst = (int*)malloc(sizeof(int) * 2);
@@ -119,7 +129,7 @@ void Slave::set_class()
 }
 
 
-void Destinations::_del_dst_lst(int idx)
+void Slave::_del_dst_lst(int idx)
 {
     // swap the value at index with the last element
     _dst_lst[idx][0] = _dst_lst[_lst_size - 1][0];
@@ -142,25 +152,51 @@ void Destinations::_del_dst_lst(int idx)
 }
 
 
-void Destinations::load_dst(DynamicJsonDocument& jTask, int *POS) // revise this line
+void Slave::load_dst(string jTask, int* POS)
 {
     for (int i = 0; i < 2; i++) _init_pos[i] = POS[i];
-    _lst_size = jTask["Num"]; // revise this line
+    string charSize(1, jTask[2]);
+    _lst_size = stoi(charSize);
     cout << "Task size: " << _lst_size << endl;
     _dst_lst = (int**)malloc(sizeof(int*) * _lst_size);
+    unsigned int i = 4;
+    int idx = 0;
+    int x;
+    int z;
+    string temp("");
+
     for (int i = 0; i < _lst_size; i++)
     {
         _dst_lst[i] = (int*)malloc(sizeof(int) * 2);
-        for (int j = 0; j < 2; j++)
+    }
+
+    while (i < jTask.length())
+    {
+        string thisChar(1, jTask[i]);
+        if (thisChar.compare(" ") == 0)
         {
-            _dst_lst[i][j] = jTask["Task"][i][j]; // revise this line
+            z = stoi(temp);
+            _dst_lst[idx][0] = x;
+            _dst_lst[idx][1] = z;
+            idx = idx + 1;
+            temp = "";
         }
+        else if (thisChar.compare(",") == 0)
+        {
+            x = stoi(temp);
+            temp = "";
+        }
+        else
+        {
+            temp.append(thisChar);
+        }
+        i = i + 1;
     }
     select_dst(POS);
 }
 
 
-void Destinations::select_dst(int *POS)
+void Slave::select_dst(int* POS)
 {
     // select the destination with the least manhattan distance
     int x = _dst_lst[0][0];
@@ -183,11 +219,38 @@ void Destinations::select_dst(int *POS)
 }
 
 
-void Destinations::proceed_dst(DynamicJsonDocument& jDst, int *POS) // revise this line
+void Slave::proceed_dst(string jDst, int* POS) // revise this line
 {
-    int* dst = (int *)malloc(sizeof(int) * 2);
-    dst[0] = jDst["Pos"][0];  // revise this line
-    dst[1] = jDst["Pos"][1];  // revise this line
+    int* dst = (int*)malloc(sizeof(int) * 2);
+    // 3_X-coor,Z-coor_
+    unsigned int i = 2;
+    int x;
+    int z;
+    string temp("");
+    while (i < jDst.length())
+    {
+        string thisChar(1, jDst[i]);
+        if (thisChar.compare(" ") == 0)
+        {
+            z = stoi(temp);
+            dst[0] = x;
+            dst[1] = z;
+            temp = "";
+        }
+        else if (thisChar.compare(",") == 0)
+        {
+            x = stoi(temp);
+            temp = "";
+        }
+        else
+        {
+            temp.append(thisChar);
+        }
+        i = i + 1;
+    }
+
+    // dst[0] = jDst["Pos"][0];  
+    // dst[1] = jDst["Pos"][1];  
     cout << _lst_size << endl;
     if (_lst_size > 0)
     {
@@ -221,7 +284,7 @@ void Destinations::proceed_dst(DynamicJsonDocument& jDst, int *POS) // revise th
 }
 
 
-int* Destinations::get_dst() {
+int* Slave::get_dst() {
     int* new_ptr = (int*)malloc(sizeof(int) * 2);
     for (int i = 0; i < 2; i++)
     {
@@ -230,7 +293,7 @@ int* Destinations::get_dst() {
     return new_ptr;
 }
 
-int Destinations::arrive_dst(int* POS)
+int Slave::arrive_dst(int* POS)
 {
     if (POS[0] == _dst[0] && POS[1] == _dst[1])
     {
@@ -242,101 +305,290 @@ int Destinations::arrive_dst(int* POS)
 
 void Slave::run() {
     // main loop
+    clock_t start = clock();
+    bool isMoving = false;
+
     POS = (int*)malloc(sizeof(int) * 2);
-    ID = getName();
+    // ID = getName();
     set_class();
-    while (step(timeStep) != -1) {
-        // Update position
-        POS[0] = round(gp->getValues()[0] / 0.1); // X coordinate
-        POS[1] = round(gp->getValues()[2] / 0.1); // Z coordinate
 
-        // Update ori -> range(-180,180)
-        const double* north = cp->getValues();
-        double rad = atan2(north[0], north[2]);
-        double bearing = (rad - 1.5708) / M_PI * 180.0;
-        if (bearing < 0.0)
-        { 
-            bearing = bearing + 360.0;
-        }
-        else if (bearing == 360.0)
+    while (step(timeStep) != -1)
+    {
+        if (receiver->getQueueLength() > 0 && !isMoving)
         {
-            bearing = bearing - 360.0;
-        }
-        ORI = bearing;
-
-        if (receiver->getQueueLength() > 0)
-        { 
             string message((const char*)receiver->getData());
             receiver->nextPacket();
             cout << getName() << " Points are " << message << "!" << endl;
 
             string strPurpose;
-            strPurpose = message[0]
-            const int Purpose = ctoi(strPurpose);
+            strPurpose = message[0];
+            const int Purpose = stoi(strPurpose);
+
 
             switch (Purpose)
             {
             case 1:
-                {
+            {
                 cout << "Tasks received" << endl;
-                mode = MOVE_FORWARD;
-                load_dst(jInfo, POS);    // revise this line
+                STATE = 1;
+                load_dst(message, POS);    // revise this line
                 break;
-                }
+            }
             case 2:
-                {
+            {
                 // other robots have arrived at their destinations
                 // need to check whether the destinations are the same as its own destination
                 // move only when it self is not at the destination
                 if (!arrive_dst(POS))
-                    {
-                    proceed_dst(jInfo, POS);  // revise this line
-                    }
+                {
+                    proceed_dst(message, POS);  // revise this line
                 }
+                break;
             }
+            }
+        } //
         else    // Normal move 
         {
+            if (!isMoving)
+            {
+                // Update position
+                POS[0] = round(gp->getValues()[0] / 0.1); // X coordinate
+                POS[1] = round(gp->getValues()[2] / 0.1); // Z coordinate
+                // Update ori -> range(-180,180)
+                const double* north = cp->getValues();
+                double rad = atan2(north[0], north[2]);
+                double bearing = (rad - 1.5708) / M_PI * 180.0;
+                if (bearing < 0.0)
+                {
+                    bearing = bearing + 360.0;
+                }
+                else if (bearing == 360.0)
+                {
+                    bearing = bearing - 360.0;
+                }
+                ORI = bearing - 180;
 
 
-
+                int* ptr = get_dst();
+                int arrive = arrive_dst(POS);
+                // cout << getName() << ": " << ptr[0] << endl;
+                // cout << getName() << ": " << ptr[1] << endl;
+                // cout << "========================" << endl;
+                if (ptr[0] != -1 && !arrive)
+                {
+                    cout << getName() << endl;
+                    actionDecoder(ORI, POS, ptr);
+                    cout << "dongdongdong" << endl;
+                }
+                else if (arrive)
+                {
+                    cout << getName() << " arrives at (" << POS[0] << "," << POS[1] << ")" << endl;
+                    string sendMessage = "2 ";
+                    string strX = to_string(POS[0]);
+                    string strZ = to_string(POS[1]);
+                    sendMessage.append(strX);
+                    sendMessage.append(",");
+                    sendMessage.append(strX);
+                    sendMessage.append(" ");
+                    emitter->send(sendMessage.c_str(), (int)strlen(sendMessage.c_str()) + 1);
+                }
+            }
 
         }
-            // if (message.compare("avoid obstacles") == 0)
-              // mode = AVOID_OBSTACLES;
-            // else if (message.compare("move forward") == 0)
-              // mode = MOVE_FORWARD;
-            // else if (message.compare("stop") == 0)
-              // mode = STOP;
-            // else if (message.compare("turn") == 0)
-              // mode = TURN;
-            // else if (message.compare("order") == 0 and getName().compare("robot1") == 0)
-              // mode = ORDER;
+    }
+
+    //double delta = distanceSensors[0]->getValue() - distanceSensors[1]->getValue();
+    double speeds[2] = { 0.0, 0.0 };
+
+    // send actuators commands according to the mode
+    switch (STATE)
+    {
+    case 1:
+        cout << "dongbuliao" << endl;
+        speeds[0] = maxSpeed;
+        speeds[1] = maxSpeed;
+        if (!isMoving)
+        {
+            start = clock();
+            isMoving = true;
         }
-
-
-
-        //double delta = distanceSensors[0]->getValue() - distanceSensors[1]->getValue();
-        double speeds[2] = { 0.0, 0.0 };
-
-        // send actuators commands according to the mode
-        switch (mode) {
-        //case AVOID_OBSTACLES:
-            //speeds[0] = boundSpeed(maxSpeed / 2.0 + 0.1 * delta);
-            //speeds[1] = boundSpeed(maxSpeed / 2.0 - 0.1 * delta);
-            //break;
-        case MOVE_FORWARD:
-            speeds[0] = maxSpeed;
-            speeds[1] = maxSpeed;
-            break;
-        case TURN:
-            speeds[0] = maxSpeed / 2.0;
-            speeds[1] = -maxSpeed / 2.0;
-            break;
-        default:
-            break;
+        double timeGap;
+        timeGap = (clock() - start) / CLOCKS_PER_SEC;
+        if (timeGap >= 1)
+        {
+            cout << timeGap << " time gap hhhhh" << endl;
+            STATE = 0;
+            isMoving = false;
+            speeds[0] = 0.0;
+            speeds[1] = 0.0;
+        }
+        else
+        {
+            double curSpeed;
+            curSpeed = gp->getSpeed();
+            cout << getName() << " speed is: " << curSpeed << endl;
         }
         motors[0]->setVelocity(speeds[0]);
         motors[1]->setVelocity(speeds[1]);
+        encoder = ps[0]->getValue();
+        break;
+
+    case 2:
+        if (ps[0]->getValue() - encoder <= TURN * 0.0368)
+        {
+            speeds[0] = 1.0;
+            speeds[1] = -1.0;
+            isMoving = true;
+        }
+        else
+        {
+            speeds[0] = 0.0;
+            speeds[1] = 0.0;
+            isMoving = false;
+            STATE = 0;
+            encoder = ps[0]->getValue();
+        }
+        motors[0]->setVelocity(speeds[0]);
+        motors[1]->setVelocity(speeds[1]);
+        break;
+
+    case 3:
+        if (ps[0]->getValue() - encoder <= TURN * 0.0368)
+        {
+            speeds[0] = -1.0;
+            speeds[1] = 1.0;
+            isMoving = true;
+        }
+        else
+        {
+            speeds[0] = 0.0;
+            speeds[1] = 0.0;
+            isMoving = false;
+            STATE = 0;
+            encoder = ps[0]->getValue();
+        }
+        motors[0]->setVelocity(speeds[0]);
+        motors[1]->setVelocity(speeds[1]);
+        break;
+    }
+}
+
+
+void Slave::actionDecoder(int ORI, int* POS, int* DST)
+{
+    //  calculate the robots' absolute position
+    int x = DST[0] - POS[0];
+    int y = DST[1] - POS[1];
+    TURN = 90;
+    if (abs(ORI) <= 5)
+    {
+        if (y >= 1)
+        {
+            STATE = 3;
+            TURN = 180;
+        }
+        else if (y <= -1)
+        {
+            STATE = 1;
+            DIST = y * 1000;
+        }
+        else
+        {
+            if (x >= 1)
+            {
+                STATE = 3;
+            }
+            else if (x <= -1)
+            {
+                STATE = 2;
+            }
+        }
+    }
+    else if (abs(ORI) >= 175)
+    {
+        if (y >= 1)
+        {
+            STATE = 1;
+            DIST = abs(y) * 1000;
+        }
+        else if (y <= -1)
+        {
+            STATE = 3;
+            TURN = 180;
+        }
+        else
+        {
+            if (x >= 1)
+            {
+                STATE = 2;
+            }
+            else if (x <= -1)
+            {
+                STATE = 3;
+            }
+        }
+    }
+    else if (ORI >= 85 && ORI <= 95)
+    {
+        if (x >= 1)
+        {
+            STATE = 1;
+            DIST = x * 1000;
+        }
+        else if (x <= 1)
+        {
+            STATE = 3;
+            TURN = 180;
+        }
+        else
+        {
+            if (y >= 1)
+            {
+                STATE = 2;
+            }
+            else if (y <= -1)
+            {
+                STATE = 3;
+            }
+        }
+    }
+    else if (ORI >= -95 && ORI <= -85)
+    {
+        if (x >= 1)
+        {
+            STATE = 3;
+            TURN = 180;
+        }
+        else if (x <= -1)
+        {
+            STATE = 1;
+            DIST = abs(x) * 1000;
+        }
+        else
+        {
+            if (y >= 1)
+            {
+                STATE = 3;
+            }
+            else if (y <= -1)
+            {
+                STATE = 2;
+            }
+        }
+    }
+    else
+    {
+        int remain = ORI % 90;
+        if (abs(remain) >= 45)
+        {
+            STATE = (remain < 0) ? 2 : 3;
+            TURN = 90 - abs(remain);
+        }
+        else
+        {
+            STATE = (remain > 0) ? 2 : 3;
+            TURN = abs(remain);
+        }
     }
 }
 
