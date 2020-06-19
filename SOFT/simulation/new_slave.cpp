@@ -24,13 +24,19 @@ using namespace std;
 using namespace webots;
 
 static const double maxSpeed = 4.0;
+
 int* POS;
 int ORI;
 int TURN;
 int DIST;
+int new_ORI;
 int STATE = 0; //0-STOP; 1-MOVE_FORWARD; 2-LEFT; 3-RIGHT;
 // const string *ID;
 const double pi = 3.14159;
+// const int EAST = 0;
+// const int SOUTH = 90;
+// const int WEST = 180;
+// const int NORTH = 270;
 
 class Slave : public Robot {
 public:
@@ -43,6 +49,7 @@ public:
     int* get_dst();
     int arrive_dst(int* POS);
     void run();
+    int sendTimes = 0;
 
 private:
     //enum Mode { MOVE_FORWARD, TURNLEFT, TURNRIGHT, STOP } // AVOID_OBSTACLES
@@ -192,6 +199,14 @@ void Slave::load_dst(string jTask, int* POS)
         }
         i = i + 1;
     }
+    // for (int i = 0; i<3; i++)
+    // {
+        // for (int j = 0; j < 2; j++)
+        // {
+            // cout << _dst_lst[i][j] << ",";
+        // }
+        // cout << endl;
+    // }   
     select_dst(POS);
 }
 
@@ -208,13 +223,20 @@ void Slave::select_dst(int* POS)
         x = _dst_lst[i][0];
         y = _dst_lst[i][1];
         int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
+        // cout << "new dist: " << new_dist << endl;
+        // cout << getName() << " X: " << POS[0] << " Z: " << POS[1] << endl; 
         if (new_dist < dist)
         {
             dist = new_dist;
             idx = i;
         }
     }
-    for (int i = 0; i < 2; i++) _dst[i] = _dst_lst[idx][i];
+    for (int i = 0; i < 2; i++)
+    {
+        _dst[i] = _dst_lst[idx][i];
+        cout << getName() << ":" << _dst[i] << " ";
+    }
+    cout << endl;
     _del_dst_lst(idx);
 }
 
@@ -314,11 +336,19 @@ void Slave::run() {
 
     while (step(timeStep) != -1)
     {
+        POS[0] = round(gp->getValues()[0] / 0.1); // X coordinate
+        POS[1] = round(gp->getValues()[2] / 0.1); // Z coordinate
+        // Update ori -> range(-180,180)
+        const double* north = cp->getValues();
+        double rad = atan2(north[0], north[2]);
+        double bearing = (rad + 2 * 1.5708) / M_PI * 180.0;
+        ORI = bearing;
+        // cout << getName() << " degree: " << ORI << endl;
         if (receiver->getQueueLength() > 0 && !isMoving)
         {
             string message((const char*)receiver->getData());
             receiver->nextPacket();
-            cout << getName() << " Points are " << message << "!" << endl;
+            // cout << getName() << " Points are " << message << "!" << endl;
 
             string strPurpose;
             strPurpose = message[0];
@@ -330,7 +360,6 @@ void Slave::run() {
             case 1:
             {
                 cout << "Tasks received" << endl;
-                STATE = 1;
                 load_dst(message, POS);    // revise this line
                 break;
             }
@@ -352,23 +381,6 @@ void Slave::run() {
             if (!isMoving)
             {
                 // Update position
-                POS[0] = round(gp->getValues()[0] / 0.1); // X coordinate
-                POS[1] = round(gp->getValues()[2] / 0.1); // Z coordinate
-                // Update ori -> range(-180,180)
-                const double* north = cp->getValues();
-                double rad = atan2(north[0], north[2]);
-                double bearing = (rad - 1.5708) / M_PI * 180.0;
-                if (bearing < 0.0)
-                {
-                    bearing = bearing + 360.0;
-                }
-                else if (bearing == 360.0)
-                {
-                    bearing = bearing - 360.0;
-                }
-                ORI = bearing - 180;
-
-
                 int* ptr = get_dst();
                 int arrive = arrive_dst(POS);
                 // cout << getName() << ": " << ptr[0] << endl;
@@ -376,100 +388,129 @@ void Slave::run() {
                 // cout << "========================" << endl;
                 if (ptr[0] != -1 && !arrive)
                 {
-                    cout << getName() << endl;
+                    // cout << getName() << endl;
                     actionDecoder(ORI, POS, ptr);
-                    cout << "dongdongdong" << endl;
+                    // encoder = ORI + TURN;
+                    // cout << getName() << " state: " <<  STATE << endl;
+                    cout << getName() << " turn: " << TURN << endl;
+                    // cout << getName() << " ori: " << ORI << endl;
+                    // cout << getName() << " new ori: " << new_ORI << endl;
+
                 }
                 else if (arrive)
                 {
-                    cout << getName() << " arrives at (" << POS[0] << "," << POS[1] << ")" << endl;
-                    string sendMessage = "2 ";
-                    string strX = to_string(POS[0]);
-                    string strZ = to_string(POS[1]);
-                    sendMessage.append(strX);
-                    sendMessage.append(",");
-                    sendMessage.append(strX);
-                    sendMessage.append(" ");
-                    emitter->send(sendMessage.c_str(), (int)strlen(sendMessage.c_str()) + 1);
+                    if (sendTimes < 3)
+                    {
+                        sendTimes += 1;
+                        cout << getName() << " arrives at (" << POS[0] << "," << POS[1] << ")" << endl;
+                        string sendMessage = "2 ";
+                        string strX = to_string(POS[0]);
+                        string strZ = to_string(POS[1]);
+                        sendMessage.append(strX);
+                        sendMessage.append(",");
+                        sendMessage.append(strX);
+                        sendMessage.append(" ");
+                        emitter->send(sendMessage.c_str(), (int)strlen(sendMessage.c_str()) + 1);
+                    }
                 }
             }
 
         }
-    }
 
-    //double delta = distanceSensors[0]->getValue() - distanceSensors[1]->getValue();
-    double speeds[2] = { 0.0, 0.0 };
 
-    // send actuators commands according to the mode
-    switch (STATE)
-    {
-    case 1:
-        cout << "dongbuliao" << endl;
-        speeds[0] = maxSpeed;
-        speeds[1] = maxSpeed;
-        if (!isMoving)
+        //double delta = distanceSensors[0]->getValue() - distanceSensors[1]->getValue();
+        double speeds[2] = { 0.0, 0.0 };
+        // cout << getName() << " state is:" << STATE << endl;
+       // send actuators commands according to the mode
+        switch (STATE)
         {
-            start = clock();
-            isMoving = true;
-        }
-        double timeGap;
-        timeGap = (clock() - start) / CLOCKS_PER_SEC;
-        if (timeGap >= 1)
-        {
-            cout << timeGap << " time gap hhhhh" << endl;
-            STATE = 0;
-            isMoving = false;
-            speeds[0] = 0.0;
-            speeds[1] = 0.0;
-        }
-        else
-        {
-            double curSpeed;
-            curSpeed = gp->getSpeed();
-            cout << getName() << " speed is: " << curSpeed << endl;
-        }
-        motors[0]->setVelocity(speeds[0]);
-        motors[1]->setVelocity(speeds[1]);
-        encoder = ps[0]->getValue();
-        break;
+        case 1:
+            // cout << "dongbuliao" << endl;
+            speeds[0] = maxSpeed;
+            speeds[1] = maxSpeed;
+            if (!isMoving)
+            {
+                start = clock();
+                isMoving = true;
+            }
+            double timeGap;
+            timeGap = (clock() - start) / CLOCKS_PER_SEC;
+            if (timeGap >= 1)
+            {
+                cout << timeGap << " time gap hhhhh" << endl;
+                STATE = 0;
+                isMoving = false;
+                speeds[0] = 0.0;
+                speeds[1] = 0.0;
+            }
 
-    case 2:
-        if (ps[0]->getValue() - encoder <= TURN * 0.0368)
-        {
-            speeds[0] = 1.0;
-            speeds[1] = -1.0;
-            isMoving = true;
-        }
-        else
-        {
-            speeds[0] = 0.0;
-            speeds[1] = 0.0;
-            isMoving = false;
-            STATE = 0;
+            motors[0]->setVelocity(speeds[0]);
+            motors[1]->setVelocity(speeds[1]);
             encoder = ps[0]->getValue();
-        }
-        motors[0]->setVelocity(speeds[0]);
-        motors[1]->setVelocity(speeds[1]);
-        break;
+            break;
 
-    case 3:
-        if (ps[0]->getValue() - encoder <= TURN * 0.0368)
-        {
-            speeds[0] = -1.0;
-            speeds[1] = 1.0;
-            isMoving = true;
+        case 2:
+            if (!isMoving)
+            {
+                encoder = ps[0]->getValue();
+                isMoving = true;
+            }
+            if (getName() == "robot1") {
+                cout << getName() << " case2 dIffer: " << ORI - new_ORI << endl;
+                cout << getName() << " case2 ori: " << ORI << endl;
+                cout << getName() << " case2 new ori: " << new_ORI << endl;
+            }
+            if (abs(ORI - new_ORI) > 2)
+            {
+                speeds[0] = -0.5;
+                speeds[1] = 0.5;
+            }
+            else
+            {
+                speeds[0] = 0.0;
+                speeds[1] = 0.0;
+                isMoving = false;
+                STATE = 0;
+            }
+
+
+            motors[0]->setVelocity(speeds[0]);
+            motors[1]->setVelocity(speeds[1]);
+            break;
+
+        case 3:
+            if (!isMoving)
+            {
+                encoder = ps[0]->getValue();
+                isMoving = true;
+            }
+            if (getName() == "robot1") {
+                cout << getName() << " case3 dIffer: " << ORI - new_ORI << endl;
+                cout << getName() << " case3 ori: " << ORI << endl;
+                cout << getName() << " case3 new ori: " << new_ORI << endl;
+            }
+            if (abs(ORI - new_ORI) > 2)
+            {
+                speeds[0] = 0.5;
+                speeds[1] = -0.5;
+            }
+            else
+            {
+                speeds[0] = 0.0;
+                speeds[1] = 0.0;
+                isMoving = false;
+                STATE = 0;
+
+            }
+
+            motors[0]->setVelocity(speeds[0]);
+            motors[1]->setVelocity(speeds[1]);
+            break;
+        case 0:
+            motors[0]->setVelocity(0.0);
+            motors[1]->setVelocity(0.0);
+            break;
         }
-        else
-        {
-            speeds[0] = 0.0;
-            speeds[1] = 0.0;
-            isMoving = false;
-            STATE = 0;
-            encoder = ps[0]->getValue();
-        }
-        motors[0]->setVelocity(speeds[0]);
-        motors[1]->setVelocity(speeds[1]);
-        break;
     }
 }
 
@@ -480,115 +521,110 @@ void Slave::actionDecoder(int ORI, int* POS, int* DST)
     int x = DST[0] - POS[0];
     int y = DST[1] - POS[1];
     TURN = 90;
-    if (abs(ORI) <= 5)
-    {
-        if (y >= 1)
-        {
-            STATE = 3;
-            TURN = 180;
-        }
-        else if (y <= -1)
-        {
-            STATE = 1;
-            DIST = y * 1000;
-        }
-        else
-        {
-            if (x >= 1)
-            {
-                STATE = 3;
-            }
-            else if (x <= -1)
-            {
-                STATE = 2;
-            }
-        }
-    }
-    else if (abs(ORI) >= 175)
-    {
-        if (y >= 1)
-        {
-            STATE = 1;
-            DIST = abs(y) * 1000;
-        }
-        else if (y <= -1)
-        {
-            STATE = 3;
-            TURN = 180;
-        }
-        else
-        {
-            if (x >= 1)
-            {
-                STATE = 2;
-            }
-            else if (x <= -1)
-            {
-                STATE = 3;
-            }
-        }
-    }
-    else if (ORI >= 85 && ORI <= 95)
+    if (abs(ORI) <= 3 || abs(ORI) >= 357)
     {
         if (x >= 1)
         {
             STATE = 1;
-            DIST = x * 1000;
         }
-        else if (x <= 1)
+        else if (x <= -1)
         {
             STATE = 3;
-            TURN = 180;
+            new_ORI = 180;
         }
         else
         {
             if (y >= 1)
             {
-                STATE = 2;
+                STATE = 3;
+                new_ORI = 90;
             }
             else if (y <= -1)
             {
-                STATE = 3;
+                STATE = 2;
+                new_ORI = 270;
             }
         }
     }
-    else if (ORI >= -95 && ORI <= -85)
+    else if (ORI >= 87 && ORI <= 93)
+    {
+        if (y >= 1)
+        {
+            STATE = 1;
+        }
+        else if (y <= -1)
+        {
+            STATE = 3;
+            new_ORI = 270;
+        }
+        else
+        {
+            if (x >= 1)
+            {
+                STATE = 2;
+                new_ORI = 0;
+            }
+            else if (x <= -1)
+            {
+                STATE = 3;
+                new_ORI = 180;
+            }
+        }
+    }
+    else if (ORI >= 177 && ORI <= 183)
     {
         if (x >= 1)
         {
             STATE = 3;
-            TURN = 180;
+            new_ORI = 360;
         }
         else if (x <= -1)
         {
             STATE = 1;
-            DIST = abs(x) * 1000;
+        }
+        else
+        {
+            if (y >= 1)
+            {
+                STATE = 2;
+                new_ORI = 90;
+            }
+            else if (y <= -1)
+            {
+                STATE = 3;
+                new_ORI = 270;
+            }
+        }
+    }
+    else if (ORI >= 267 && ORI <= 273)
+    {
+        if (x >= 1)
+        {
+            STATE = 3;
+            new_ORI = 360;
+        }
+        else if (x <= -1)
+        {
+            STATE = 2;
+            new_ORI = 180;
         }
         else
         {
             if (y >= 1)
             {
                 STATE = 3;
+                new_ORI = 90;
             }
             else if (y <= -1)
             {
-                STATE = 2;
+                STATE = 1;
             }
         }
     }
     else
     {
-        int remain = ORI % 90;
-        if (abs(remain) >= 45)
-        {
-            STATE = (remain < 0) ? 2 : 3;
-            TURN = 90 - abs(remain);
-        }
-        else
-        {
-            STATE = (remain > 0) ? 2 : 3;
-            TURN = abs(remain);
-        }
+        STATE = 3;
+        new_ORI = 0;
     }
 }
 
