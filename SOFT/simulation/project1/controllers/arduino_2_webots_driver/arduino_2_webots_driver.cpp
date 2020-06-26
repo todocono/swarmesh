@@ -50,18 +50,22 @@ void Driver::run()
 {
   // const double *RotationValues = translationField->getSFRotation();
   // cout << RotationValues[3] << endl;
-  string message("1 3 ");
-  int numsX[3]; // 3(num of robots) random x-coordinates for dst
-  int numsZ[3]; // 3(num of robots) random z-coordinates for dst
+  int numOfRobots = 5;
+  string strNumOfRobots = to_string(numOfRobots);
+  string message("1 ");
+  message.append(strNumOfRobots);
+  message.append(" ");
+  int numsX[numOfRobots]; // 3(num of robots) random x-coordinates for dst
+  int numsZ[numOfRobots]; // 3(num of robots) random z-coordinates for dst
   srand(time(0));
-  for (int i = 0; i < 3; i++) 
+  for (int i = 0; i < numOfRobots; i++) 
   {
       numsX[i] = 1 + rand()%26 - 14;  // 30 grids in x-axis
       // cout << numsX[i] << " in x" << endl;
       numsZ[i] = 1 + rand()%19 - 10;  // 23 grids in z-axis
       // cout << numsZ[i] << " in z" << endl; 
   }
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < numOfRobots; i++)
   {
       string temp1=to_string(numsX[i]);
       string temp2=to_string(numsZ[i]);
