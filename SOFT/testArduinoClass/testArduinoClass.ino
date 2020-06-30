@@ -405,8 +405,6 @@ void Communication::udp_init(Destinations dst, const char* ID, int *POS, int *OR
       {
         //   only for updating current position
         Serial.println("Position received");
-        int x = jInfo[ID][0][0];
-        int y = jInfo[ID][0][1];
         // not move if it can't get its position in json document
         if (!jInfo[ID][0][0] && !jInfo[ID][0][1]) break;
         POS[0] = jInfo[ID][0][0];
@@ -728,6 +726,12 @@ void setup()
         _udp.writeTo((const uint8_t*) jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
         free(jsonStr);
       }
+      //      com.udp_init(dst, ID, POS, &ORI, jInfo);
+      //      {
+      //        char *jsonStr = com.json_creator(POS);
+      //        _udp.writeTo((const uint8_t*) jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+      //        free(jsonStr);
+      //      }
     });
   }
   //  MUST BE ADDED TO THE setup()
@@ -736,5 +740,6 @@ void setup()
 void loop()
 {
   robot.execute_main();
-
+  //  if (!STATE)
+  //    loco.forward(1000);
 }
