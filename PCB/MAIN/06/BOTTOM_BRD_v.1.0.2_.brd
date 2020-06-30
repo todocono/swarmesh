@@ -168,22 +168,22 @@
 <hole x="40.8" y="-8.25" drill="2.99999375" grouprefs="CASTER02 CASTER1 CASTER"/>
 <text x="14.732" y="-27.94" size="0.635" layer="21">M1 GND C1 C2 VCC M2</text>
 <text x="14.859" y="27.432" size="0.635" layer="21">M2 VCC C2 C1 GND M1</text>
-<hole x="9" y="-26.06" drill="2.3" grouprefs="MOTOR M2"/>
-<hole x="-9" y="-26.06" drill="2.3" grouprefs="MOTOR M2"/>
-<wire x1="12" y1="-29.4" x2="6" y2="-29.4" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="6" y1="-29.4" x2="-6" y2="-29.4" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="-6" y1="-29.4" x2="-12" y2="-29.4" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
+<hole x="9" y="-26.06" drill="2.3" grouprefs="M2 MOTOR"/>
+<hole x="-9" y="-26.06" drill="2.3" grouprefs="M2 MOTOR"/>
+<wire x1="12" y1="-29.4" x2="6" y2="-29.4" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="6" y1="-29.4" x2="-6" y2="-29.4" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="-6" y1="-29.4" x2="-12" y2="-29.4" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
 <wire x1="-12" y1="-29.4" x2="-12" y2="-23.042" width="0.1524" layer="21" grouprefs="M2"/>
-<wire x1="-12" y1="-23.042" x2="-7" y2="-23.042" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="-7" y1="-23.042" x2="7" y2="-23.042" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="7" y1="-23.042" x2="12" y2="-23.042" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="12" y1="-23.042" x2="12" y2="-29.4" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="7" y1="-23.042" x2="7" y2="-13.45" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="7" y1="-13.45" x2="-7" y2="-13.45" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="-7" y1="-13.45" x2="-7" y2="-23.042" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="6" y1="-29.4" x2="6" y2="-40.492" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="6" y1="-40.492" x2="-6" y2="-40.492" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
-<wire x1="-6" y1="-40.492" x2="-6" y2="-29.4" width="0.1524" layer="21" grouprefs="MOTOR M2"/>
+<wire x1="-12" y1="-23.042" x2="-7" y2="-23.042" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="-7" y1="-23.042" x2="7" y2="-23.042" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="7" y1="-23.042" x2="12" y2="-23.042" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="12" y1="-23.042" x2="12" y2="-29.4" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="7" y1="-23.042" x2="7" y2="-13.45" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="7" y1="-13.45" x2="-7" y2="-13.45" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="-7" y1="-13.45" x2="-7" y2="-23.042" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="6" y1="-29.4" x2="6" y2="-40.492" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="6" y1="-40.492" x2="-6" y2="-40.492" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
+<wire x1="-6" y1="-40.492" x2="-6" y2="-29.4" width="0.1524" layer="21" grouprefs="M2 MOTOR"/>
 <text x="42.926" y="-5.588" size="1" layer="1" font="vector" rot="R90">SWARMESH 2020
 2020/06/26
 v1.0.2</text>
@@ -2993,12 +2993,12 @@ design rules under a new name.
 <wire x1="-12" y1="2.125" x2="-12" y2="2.625" width="0.3048" layer="16"/>
 <wire x1="-12" y1="2.625" x2="-12.041" y2="2.835" width="0.3048" layer="16"/>
 <wire x1="-12" y1="2.125" x2="-12.041" y2="1.9175" width="0.3048" layer="16"/>
-<wire x1="24.59" y1="3.27" x2="24.05" y2="3.81" width="0.3048" layer="16"/>
-<wire x1="24.05" y1="3.81" x2="24.05" y2="6.7" width="0.3048" layer="16"/>
-<wire x1="24.05" y1="6.7" x2="24.05" y2="6.75" width="0.3048" layer="16"/>
-<via x="24.05" y="6.7" extent="1-16" drill="0.5"/>
-<wire x1="24.45" y1="15.425" x2="24.45" y2="7.1" width="0.3048" layer="16"/>
-<wire x1="24.45" y1="7.1" x2="24.05" y2="6.7" width="0.3048" layer="16"/>
+<wire x1="24.59" y1="3.27" x2="23.85" y2="4.01" width="0.3048" layer="16"/>
+<wire x1="23.85" y1="4.01" x2="23.85" y2="6.7" width="0.3048" layer="16"/>
+<wire x1="23.85" y1="6.7" x2="23.85" y2="6.75" width="0.3048" layer="16"/>
+<via x="23.85" y="6.7" extent="1-16" drill="0.5"/>
+<wire x1="24.45" y1="15.425" x2="24.45" y2="7.3" width="0.3048" layer="16"/>
+<wire x1="24.45" y1="7.3" x2="23.85" y2="6.7" width="0.3048" layer="16"/>
 <wire x1="2.375" y1="-24.75" x2="0.4875" y2="-26.6375" width="0.3048" layer="16"/>
 <wire x1="-6.625" y1="-25.125" x2="-6.625" y2="-27.9" width="0.3048" layer="16"/>
 <wire x1="-14.25" y1="-17.5" x2="-6.625" y2="-25.125" width="0.3048" layer="16"/>
