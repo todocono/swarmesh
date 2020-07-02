@@ -73,23 +73,23 @@ void IRAM_ATTR isr2()
 
 class Motor
 {
-  private:
-    Encoder *_encoder;
-    int _PWM;
-    int _DIR;
-    int _IDX;
-    uint8_t _PIN;
-    void _reset_encoder();
+private:
+  Encoder *_encoder;
+  int _PWM;
+  int _DIR;
+  int _IDX;
+  uint8_t _PIN;
+  void _reset_encoder();
 
-  public:
-    Motor(Encoder *encoder, int PWM, int DIR, int IDX);
-    void motor_move(int spd, int dir);
-    void motor_stop();
-    const int get_idx();
-    const int get_pwm();
-    const int get_dir();
-    const int get_tick();
-    const uint8_t get_pin();
+public:
+  Motor(Encoder *encoder, int PWM, int DIR, int IDX);
+  void motor_move(int spd, int dir);
+  void motor_stop();
+  const int get_idx();
+  const int get_pwm();
+  const int get_dir();
+  const int get_tick();
+  const uint8_t get_pin();
 };
 
 Motor::Motor(Encoder *encoder, int PWM, int DIR, int IDX)
@@ -153,70 +153,133 @@ const uint8_t Motor::get_pin()
 
 class Locomotion
 {
-  private:
-    Motor _motor1;
-    Motor _motor2;
-    Motor *_motors;
-    int _PULSE;
-  public:
-    Locomotion(Encoder *encoder1, Encoder *encoder2);
+private:
+  Motor _motor1;
+  Motor _motor2;
+  Motor *_motors;
+  int _PULSE;
+  int _calc_ori(int ori);
+  int _calc_error(int *pos, const char *traj);
 
-    //    PID
-    unsigned long lastTime;
-    double Input, Output, Setpoint;
-    double errSum, lastErr;
-    double kp, ki, kd;
-    int SampleTime = 1000; //1 sec
-    //    PID
-
-    int turn(int deg, char dir);
-    int forward(int dist);
-    void motor_init();
-    void pid_compute();
-    void pid_tuning(double Kp, double Ki, double Kd);
+public:
+  Locomotion(Encoder *encoder1, Encoder *encoder2);
+  //    PID
+  //    unsigned long lastTime;
+  //    double Input, Output, Setpoint;
+  //    double errSum, lastErr;
+  //    double kp, ki, kd;
+  //    int SampleTime = 1000; //1 sec
+  //    PID
+  int forward(int dist, int *pos, const char *path);
+  int turn(int deg, char dir);
+  int *get_tick();
+  void motor_init();
+  void encoder_reset();
+  void pid_compute();
+  void pid_tuning(double Kp, double Ki, double Kd);
 };
 
 Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1, 27, 14, 1),
-  _motor2(encoder2, 12, 13, 2)
+                                                               _motor2(encoder2, 12, 13, 2)
 {
   _PULSE = 7;
 }
 
-int Locomotion::forward(int dist)
+int Locomotion::_calc_error(int *pos, const char *traj)
 {
-  if (_motor1.get_tick() < dist)
+  int error;
+  int path = traj[1].toInt();
+  switch (traj[0])
   {
-    //    define a function revealing the current position
+  case 'x':
+    if (abs(pos[2]) <= 10)
+      error = pos[0] - path;
+    else
+      error = path - pos[0];
+    break;
+  case 'y':
+    if (pos[2] >= 80 && pos[2] <= 100)
+      error = pos[1] - path;
+    else
+      error = path - pos[1];
+    break;
+  }
+  return error;
+}
+
+int Locomotion::_calc_ori(int ori, const char *traj)
+{
+  char dir = traj[0];
+  if (dir == 'y')
+  {
+    if (ori > 0)
+    {
+      ori = ori - 90;
+    }
+    else
+    {
+      ori = ori + 90;
+    }
+  }
+  else
+  {
+    if (abs(ori) > 175)
+    {
+      if (ori > 0)
+      {
+        ori -= 180;
+      }
+      else
+      {
+        ori += 180;
+      }
+    }
+  }
+  return ori;
+}
+
+int Locomotion::forward(int dist, int *pos, const char *traj)
+{
+  double spd = 200;
+  int tick1 = _motor1.get_tick();
+  int tick2 = _motor2.get_tick();
+  if (tick1 < dist)
+  {
     //    compare the current position with the position in camera
     //    error is the difference in the prediction position and the position from the camera
-
-    double spd = 255;
-    int tick = _motor1.get_tick();
-    if (tick <= 250)
+    int ori = _calc_ori(pos[2], traj);
+    int error = _calc_error(pos, traj);
+    //    error is exceeding 3 cm
+    if (abs(error) >= 3)
     {
-      spd = map(tick, 0, 250, 150, 255);
-      Serial.println(spd);
+      //  need to determine the rotation relative to the current trajectory
+      int ori = _calc_ori(pos[2], traj);
+      //  use triangulation to calculate the speed for the motor
     }
-    else if ((dist - tick) <= 250)
+    //    see if the error has exceeded certain range
+    if (tick1 <= 250 && tick2 <= 250)
     {
-      Serial.println("stopping");
-      spd = (dist - tick) * 0.8;
-      spd = map(spd, 0, 250, 150, 255);
+      spd = map(tick1, 0, 250, 120, 200);
     }
-    if (_motor1.get_tick() < _motor2.get_tick())
+    else if ((dist - tick1) <= 250)
     {
-      //          PID code here
-      int error = _motor2.get_tick() - _motor1.get_tick();
-
-      _motor1.motor_move(spd, 0);
-      _motor2.motor_move(spd / error, 0);
+      spd = (dist - tick1) * 0.8;
+      spd = map(spd, 0, 250, 120, 200);
     }
-    else if (_motor1.get_tick() > _motor2.get_tick())
+    if (abs(tick1 - tick2) > 5)
     {
-      int error = _motor1.get_tick() - _motor2.get_tick();
-
-      _motor1.motor_move(spd / error, 0);
-      _motor2.motor_move(spd, 0);
+      if (tick1 < tick2)
+      {
+        int error = (tick2 - tick1) * 0.5;
+        _motor1.motor_move(spd + error, 0);
+        _motor2.motor_move(spd - error, 0);
+      }
+      else if (tick1 > tick2)
+      {
+        int error = (tick1 - tick2) * 0.5;
+        _motor1.motor_move(spd - error, 0);
+        _motor2.motor_move(spd + error, 0);
+      }
     }
     else
     {
@@ -239,15 +302,15 @@ int Locomotion::turn(int deg, char dir)
   int num2;
   switch (dir)
   {
-    case 'L':
-      num1 = 0;
-      num2 = 1;
-      break;
+  case 'L':
+    num1 = 0;
+    num2 = 1;
+    break;
 
-    case 'R':
-      num1 = 1;
-      num2 = 0;
-      break;
+  case 'R':
+    num1 = 1;
+    num2 = 0;
+    break;
   }
   if (_motor1.get_tick() <= _PULSE * deg)
   {
@@ -272,6 +335,14 @@ int Locomotion::turn(int deg, char dir)
   }
 }
 
+int *Locomotion::get_tick()
+{
+  int *ptr = (int *)malloc(sizeof(int) * 2);
+  ptr[1] = _motor1.get_tick();
+  ptr[2] = _motor2.get_tick();
+  return ptr;
+}
+
 void Locomotion::motor_init()
 {
   _motors = (Motor *)malloc(sizeof(Motor) * 2);
@@ -291,6 +362,12 @@ void Locomotion::motor_init()
     ledcSetup(_motors[i].get_idx(), 12000, 8);
   }
   pid_tuning(0.5, 0.5, 0.5);
+}
+
+void Locomotion::encoder_reset()
+{
+  for (int i = 0; i < 2; i++)
+    _motors[i].motor_stop();
 }
 
 void Locomotion::pid_compute()
@@ -323,42 +400,155 @@ void Locomotion::pid_tuning(double Kp, double Ki, double Kd)
 
 class Robot
 {
-  private:
-    int ptr;
-    int *_pos;
-    int **_route;
-  public:
-    Robot();
-    void robot_init();
-    void get_prev_pos();
+private:
+  int _ptr;
+  int _turn;
+  int _dist;
+  int _error;
+  int _STATE;
+  int _task_size;
+  int _off_course;
+  int *_prev_tick;
+  int **_route;
+  int _pos[3]; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
+  Locomotion _loc;
+
+public:
+  Robot(Encoder *encoder1, Encoder *encoder2);
+  int *get_pos();
+  void robot_init();
+  void calc_error();
+  void check_task();
+  void update_est();
+  void update_abs(int *pos);
+  void auto_route(int *dst);
 };
 
-Robot::Robot()
+Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
 {
-  ptr = 1;
+  _ptr = 1;
+  _STATE = 0;
+}
+
+int *Robot::get_pos()
+{
+  //  free needed
+  int *ptr = (int *)malloc(sizeof(int) * 3);
+  for (int i = 0; i < 3; i++)
+    ptr[i] = _pos[i];
+  return ptr;
 }
 
 void Robot::robot_init()
 {
-  _pos = (int*)malloc(sizeof(int) * 2);
-  _route = (int**)malloc(sizeof(int*) * 2);
-  for (int i = 0; i < 2; i ++) _route[i] = (int*)malloc(sizeof(int) * 2);
-  _pos[0] = 0;
-  _pos[1] = 0;
-  //  hard-coding the current position and the route
-  for (int i = 0; i < 2; i ++) _route[0][i] = _pos[i];
-  _route[1][0] = 20;
+  //  routing algorithm goes here
+  //  [x, y, rotation]
+  for (int i = 0; i < 3; i++)
+    _pos[i] = 0;
+  for (int i = 0; i < 2; i++)
+    _prev_tick[i] = 0;
 }
 
-//void Robot::get_prev_pos()
-//{
-//  int *ptr = (int*)malloc(sizeof(int) * 2);
-//  for (int i = 0; i < 2; i ++) ptr[i] = _route[ptr - 1][i];
-//  return ptr;
-//}
+void Robot::calc_error()
+{
+  //  first calculate the path currently on
+  int *prev_task = _route[_ptr - 1];
+  int *crt_task = _route[_ptr];
+  if (!(crt_task[0] - prev_task[0]))
+  {
+    
+  }
+}
 
-Locomotion loc(&encoder1, &encoder2);
-Robot robot;
+void Robot::auto_route(int *dst)
+{
+  // A* routing algorithm goes here
+  int inter = 1;
+  _route = (int **)malloc(sizeof(int *) * (inter + 1));
+  for (int i = 0; i < (inter + 1); i++)
+    _route[i] = (int *)malloc(sizeof(int) * 2);
+  //  hard-coding the current position and the destination
+  for (int i = 0; i < 2; i++)
+    _route[0][i] = _pos[i];
+  _route[1][0] = 20;
+  _route[1][1] = 0;
+  _task_size = inter + 1;
+}
+
+// this function would be called when the encoder ticks or when the server updates the robots global position
+void Robot::update_abs(int *pos)
+{
+  for (int i = 0; i < 3; i++)
+    _pos[i] = pos[i];
+  free(pos);
+}
+
+void Robot::update_est()
+{
+  //  formulas for calculating trajectory based on encoders' ticks
+  int *tick = _loc.get_tick();
+  //  code below is for calculating estimated current position
+  int left = tick[0] - _prev_tick[0];
+  int right = tick[1] - _prev_tick[1];
+  //  knowing how far it has gone so far
+  switch (_STATE)
+  {
+  case 1:
+    //  when the robot is going forward
+    {
+      int ori = _pos[2];
+      //  classify based on the orientation of the robot
+      if (abs(ori <= 5))
+        _pos[1] -= 0.01 * (left + right) / 2;
+      else if (abs(ori) >= 175)
+        _pos[1] += 0.01 * (left + right) / 2;
+      else if (ori <= 95 && ori >= 85)
+        _pos[0] += 0.01 * (left + right) / 2;
+      else if (ori <= -85 && ori >= -95)
+        _pos[0] -= 0.01 * (left + right) / 2;
+    }
+    break;
+  case 2:
+    // when the robot is turning
+    // not filled for now
+    break;
+  }
+  _prev_tick[0] = tick[0];
+  _prev_tick[1] = tick[1];
+  free(tick);
+}
+
+void Robot::check_task()
+{
+  int *pos = get_pos();
+  if (pos[0] == _route[_ptr][0] && pos[1] == _route[_ptr][1])
+  {
+    if (_ptr + 1 == _task_size)
+    {
+      Serial.println("arrived");
+      _STATE = 0;
+      for (int i = 0; i < _task_size; i++)
+        free(_route[i]);
+      //        clear every node in array
+      free(_route);
+      _task_size = 0;
+      _loc.reset_encoder();
+      _ptr = 1;
+      for (int i = 0; i < 2; i++)
+        _prev_tick[i] = 0;
+      _turn = 0;
+      _dist = 0;
+      _error = 0;
+    }
+    // not arrived at the final destination
+    else
+    {
+      _ptr++;
+    }
+  }
+}
+
+Robot robot(&encoder1, &encoder2);
 
 void setup()
 {
@@ -374,6 +564,6 @@ void setup()
 
 void loop()
 {
-  if (!STATE)
-    STATE = loc.forward(2000);
+  //  if (!STATE)
+  //    STATE = loc.forward(10000);
 }
