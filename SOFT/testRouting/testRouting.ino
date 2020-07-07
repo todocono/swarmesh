@@ -13,57 +13,6 @@
 #include "WiFi.h"
 #include "AsyncUDP.h"
 #include "Wire.h" // This library allows you to communicate with I2C devices.
-#define PI 3.14159265
-#define SDA 21
-#define SCL 22
-
-//const int MPU_ADDR = 0x68; // I2C address of the MPU-6050. If AD0 pin is set to HIGH, the I2C address will be 0x69.
-int prev;
-int16_t accelerometer_x, accelerometer_y, accelerometer_z; // variables for accelerometer raw data
-int16_t gyro_x, gyro_y, gyro_z;                            // variables for gyro raw data
-int16_t temperature;                                       // variables for temperature data
-char tmp_str[7];                                           // temporary variable used in convert function
-char *convert_int16_to_str(int16_t i)
-{ // converts int16 to string. Moreover, resulting strings will have the same length in the debug monitor.
-  sprintf(tmp_str, "%6d", i);
-  return tmp_str;
-}
-
-// code below was copied from http://brettbeauregard.com/blog/2011/04/improving-the-beginner%e2%80%99s-pid-sample-time/
-// only for reference
-unsigned long lastTime;
-double Input, Output, Setpoint;
-double errSum, lastErr;
-double kp, ki, kd;
-int SampleTime = 1000; //1 sec
-void Compute()
-{
-  unsigned long now = millis();
-  int timeChange = (now - lastTime);
-  if (timeChange >= SampleTime)
-  {
-    /*Compute all the working error variables*/
-    double error = Setpoint - Input;
-    errSum += error;
-    double dErr = (error - lastErr);
-
-    /*Compute PID Output*/
-    Output = kp * error + ki * errSum + kd * dErr;
-
-    /*Remember some variables for next time*/
-    lastErr = error;
-    lastTime = now;
-  }
-}
-
-void SetTunings(double Kp, double Ki, double Kd)
-{
-  double SampleTimeInSec = ((double)SampleTime) / 1000;
-  kp = Kp;
-  ki = Ki * SampleTimeInSec;
-  kd = Kd / SampleTimeInSec;
-}
-// end copy
 
 struct Encoder
 {
@@ -174,6 +123,8 @@ class Locomotion
     Motor _motor2;
     Motor *_motors;
     int _PULSE;
+    int _width;
+    int _off_course;
     int _prev_tick[2];
     int _calc_ori(int ori);
     int _calc_error(int *pos, const char *traj);
@@ -187,9 +138,10 @@ class Locomotion
     //    double kp, ki, kd;
     //    int SampleTime = 1000; //1 sec
     //    PID
+    float pos[3];
     int get_pulse();
-    int turn(int deg, float *pos, char dir);
-    int forward(int dist, float *pos);
+    int forward(int dist);
+    int turn(int deg, char dir);
     int *get_tick(int *tick);
     void motor_init();
     void encoder_reset();
@@ -201,20 +153,19 @@ Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1,
   _motor2(encoder2, 12, 13, 2)
 {
   _PULSE = 7;
+  _width = 800;
+  _off_course = 0;
   for (int i = 0; i < 2; i++)
     _prev_tick[i] = 0;
 }
 
-int Locomotion::forward(int dist, float *_pos)
+int Locomotion::forward(int dist)
 {
   double spd = 200;
   int tick1 = _motor1.get_tick();
   int tick2 = _motor2.get_tick();
-  Serial.println(tick1);
-  Serial.print("Position: "); Serial.println(_pos[0]);
   if (tick1 < dist)
   {
-    //    see if the error has exceeded certain range
     if (tick1 <= 250 && tick2 <= 250)
     {
       spd = map(tick1, 0, 250, 120, 200);
@@ -224,37 +175,62 @@ int Locomotion::forward(int dist, float *_pos)
       spd = (dist - tick1) * 0.8;
       spd = map(spd, 0, 250, 120, 200);
     }
-    // the ticks of the motors don't need to be the same
-    if (abs(tick1 - tick2) > 5)
-    {
-      if (tick1 < tick2)
-      {
-        int error = (tick2 - tick1) * 0.5;
-        _motor1.motor_move(spd + error, 0);
-        _motor2.motor_move(spd - error, 0);
-      }
-      else if (tick1 > tick2)
-      {
-        int error = (tick1 - tick2) * 0.5;
-        _motor1.motor_move(spd - error, 0);
-        _motor2.motor_move(spd + error, 0);
-      }
-    }
+    //    if (abs(tick1 - tick2) > 5)
+    //    {
+    //      if (tick1 < tick2)
+    //      {
+    //        int error = (tick2 - tick1) * 0.5;
+    //        _motor1.motor_move(spd + error, 0);
+    //        _motor2.motor_move(spd - error, 0);
+    //      }
+    //      else if (tick1 > tick2)
+    //      {
+    //        int error = (tick1 - tick2) * 0.5;
+    //        _motor1.motor_move(spd - error, 0);
+    //        _motor2.motor_move(spd + error, 0);
+    //      }
+    //    }
     _motor1.motor_move(spd, 0);
     _motor2.motor_move(spd, 0);
-    // also update its position as well
-    int ori = _pos[2];
-    //  classify based on the orientation of the robot
-    int tick = _motor1.get_tick();
-    if (abs(ori <= 5))
-      _pos[1] -= tick - _prev_tick[0] ;
-    else if (abs(ori) >= 175)
-      _pos[1] += tick - _prev_tick[0];
-    else if (ori <= 95 && ori >= 85)
-      _pos[0] += tick - _prev_tick[0];
-    else if (ori <= -85 && ori >= -95)
-      _pos[0] -= tick - _prev_tick[0];
-    _prev_tick[0] = tick;
+    int tick1 = _motor1.get_tick();
+    int tick2 = _motor2.get_tick();
+    int ori = pos[2];
+    if (abs(tick1 - tick2) > 10 && !_off_course)
+    {
+      _off_course = 1;
+      int rotation = (tick2 - tick1) / _width;
+      int radius = _width * (tick1 + tick2) / 2 * (tick2 - tick1);
+      if (tick1 > tick2)
+      {
+        // right rotation
+        pos[0] = radius * sin((pos[2] + rotation) * PI / 180) + pos[0] - radius * sin(pos[2]);
+        pos[1] = -radius * cos((pos[2] + rotation) * PI / 180) + pos[1] + radius * cos(pos[2]);
+        pos[2] += rotation;
+        if (pos[2] > 180)
+          pos[2] -= 360;
+      }
+      else
+      {
+        // left rotation
+        pos[0] = radius * sin((pos[2] - rotation) * PI / 180) + pos[0] - radius * sin(pos[2]);
+        pos[1] = -radius * cos((pos[2] - rotation) * PI / 180) + pos[1] + radius * cos(pos[2]);
+        pos[2] -= rotation;
+        if (pos[2] < -180)
+          pos[2] += 360;
+      }
+    }
+    else
+    {
+      if (abs(ori <= 5))
+        pos[1] -= tick1 - _prev_tick[0];
+      else if (abs(ori) >= 175)
+        pos[1] += tick1 - _prev_tick[0];
+      else if (ori <= 95 && ori >= 85)
+        pos[0] += tick1 - _prev_tick[0];
+      else if (ori <= -85 && ori >= -95)
+        pos[0] -= tick1 - _prev_tick[0];
+      _prev_tick[0] = tick1;
+    }
     return 0;
   }
   else
@@ -268,7 +244,7 @@ int Locomotion::forward(int dist, float *_pos)
   }
 }
 
-int Locomotion::turn(int deg, float *_pos, char dir)
+int Locomotion::turn(int deg, char dir)
 {
   int num1;
   int num2;
@@ -305,14 +281,14 @@ int Locomotion::turn(int deg, float *_pos, char dir)
     switch (dir)
     {
       case 'L':
-        _pos[2] -= deg;
-        if (_pos[2] < -180)
-          _pos[2] += 360;
+        pos[2] -= deg;
+        if (pos[2] < -180)
+          pos[2] += 360;
         break;
       case 'R':
-        _pos[2] += deg;
-        if (_pos[2] > 180)
-          _pos[2] -= 360;
+        pos[2] += deg;
+        if (pos[2] > 180)
+          pos[2] -= 360;
         break;
     }
     for (int i = 0; i < 2; i++)
@@ -377,7 +353,7 @@ class Robot
     int _off_course;
     int _prev_tick[2];
     int **_route;
-    float _pos[3]; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
+    float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
     Locomotion _loc;
 
   public:
@@ -391,7 +367,7 @@ class Robot
     void main_executor();
     void action_decoder();
     void update_abs(int *pos);
-    void auto_route(int *dst);
+    void auto_route();
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
@@ -400,11 +376,12 @@ Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
   _STATE = 0;
   _width = 8;
   _off_course = 0;
+  _pos = _loc.pos;
 }
 
-int *Robot::get_pos()
+float *Robot::get_pos()
 {
-  int *ptr = (int *)malloc(sizeof(int) * 3);
+  float *ptr = (int *)malloc(sizeof(int) * 3);
   for (int i = 0; i < 3; i++)
     ptr[i] = _pos[i];
   return ptr;
@@ -417,37 +394,36 @@ int Robot::get_state()
 
 void Robot::robot_init()
 {
-  for (int i = 0; i < 2; i++)
-    _pos[i] = 0;
   _loc.motor_init();
-  _pos[2] = 0;
 }
 
 void Robot::calc_error()
 {
+  int *pos = get_pos();
   int error;
   int *prev_task = _route[_ptr - 1];
   int *crt_task = _route[_ptr];
   if (!(crt_task[0] - prev_task[0]))
   {
     if (crt_task[1] - prev_task[1] < 0) // from south to north
-      error = _pos[0] - crt_task[0];
+      error = pos[0] - crt_task[0];
     else
-      error = crt_task[0] - _pos[0];
+      error = crt_task[0] - pos[0];
   }
   else if (!(crt_task[1] - prev_task[1]))
   {
     if (crt_task[0] - prev_task[0] < 0) // from west to east
-      error = _pos[1] - crt_task[1];
+      error = pos[1] - crt_task[1];
     else
-      error = crt_task[1] - _pos[1];
+      error = crt_task[1] - pos[1];
   }
+  free(pos);
   if (abs(error) > 3) // a threshold value needs to be set
     // change the state to error recovery
     _off_course = 1;
 }
 
-void Robot::auto_route(int *dst)
+void Robot::auto_route()
 {
   // A* routing algorithm goes here
   int inter = 1;
@@ -467,7 +443,6 @@ void Robot::update_abs(int *pos)
 {
   for (int i = 0; i < 3; i++)
     _pos[i] = pos[i];
-  free(pos);
 }
 
 //void Robot::update_est()
@@ -566,18 +541,19 @@ void Robot::main_executor()
   {
     case 0:
       check_task();
-      if (_STATE != 4) action_decoder();
+      if (_STATE != 4)
+        action_decoder();
       break;
     case 1:
-      proceed = _loc.forward(_dist, _pos);
+      proceed = _loc.forward(_dist);
       Serial.println("Moving forward");
       break;
     case 2:
-      proceed = _loc.turn(_turn, _pos, 'L');
+      proceed = _loc.turn(_turn, 'L');
       Serial.println("turning left");
       break;
     case 3:
-      proceed = _loc.turn(_turn, _pos, 'R');
+      proceed = _loc.turn(_turn, 'R');
       Serial.println("turning right");
       break;
     case 4:
@@ -586,16 +562,16 @@ void Robot::main_executor()
   }
   if (proceed)
     _STATE = 0;
-  if (!_STATE) Serial.println("resetting");
-  Serial.print(_pos[0]); Serial.print(" "); Serial.println(_pos[1]);
   // update_est();
   Serial.println();
 }
 
 void Robot::action_decoder()
 {
-  int x = _route[_ptr][0] - _pos[0];
-  int y = _route[_ptr][1] - _pos[1];
+  int *pos = get_pos();
+  int x = _route[_ptr][0] - pos[0];
+  int y = _route[_ptr][1] - pos[1];
+  free(pos);
   int ORI = _pos[2];
   _turn = 90;
   if (abs(ORI) <= 5)
@@ -708,6 +684,7 @@ void Robot::action_decoder()
       _turn = abs(remain);
     }
   }
+  Serial.println("action decoded");
 }
 
 void Robot::check_task()
@@ -740,6 +717,7 @@ void Robot::check_task()
       _ptr++;
     }
   }
+  Serial.println("need to move");
   free(pos);
 }
 
@@ -757,37 +735,45 @@ void setup()
   robot.robot_init();
   encoder1.numberTicks = 0;
   encoder2.numberTicks = 0;
-  //  WiFi.mode(WIFI_STA);
-  //  WiFi.begin(ssid, password);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
   Serial.begin(115200);
-  //  if (WiFi.waitForConnectResult() != WL_CONNECTED)
-  //  {
-  //    Serial.println("WiFi Failed");
-  //    while (1)
-  //    {
-  //      delay(1000);
-  //    }
-  //  }
-  //  if (udp.listenMulticast(IPAddress(224, 3, 29, 1), 10001))
-  //  {
-  //    udp.onPacket([](AsyncUDPPacket packet) {});
-  //  }
+  if (WiFi.waitForConnectResult() != WL_CONNECTED)
+  {
+    Serial.println("WiFi Failed");
+    while (1)
+    {
+      delay(1000);
+    }
+  }
   delay(1000);
-  //  Wire.begin(SDA, SCL, 400000);
-  //  Wire.beginTransmission(MPU_ADDR); // Begins a transmission to the I2C slave (GY-521 board)
-  //  Wire.write(0x6B); // PWR_MGMT_1 register
-  //  Wire.write(0); // set to zero (wakes up the MPU-6050)
-  //  Wire.endTransmission(true);
-  //  prev = millis();
   //  listening to both task and current position on this channel
-  int *dst;
-  robot.auto_route(dst);
+  robot.auto_route();
   Serial.println("initialized");
 }
 
 void loop()
 {
   robot.main_executor();
+
+  int *pos = robot.get_pos();
+  Serial.print(pos[0]); Serial.print("  "); Serial.println(pos[1]);
+//  char jsonStr[80];
+//  //              jsonCreator(jsonStr);
+//  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
+//  DynamicJsonDocument doc(capacity);
+//  doc["Purpose"] = 3;
+//  JsonArray Pos = doc.createNestedArray("Pos");
+//  Pos.add(pos[0]);
+//  Pos.add(pos[1]);
+//  serializeJson(doc, jsonStr);
+//  doc.clear();
+//
+////  udp.broadcast(jsonStr);
+//  Serial.println("next iter");
+
+  free(pos);
+
   //  if (!STATE)
   //    STATE = loc.forward(10000);
 }

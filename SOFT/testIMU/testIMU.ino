@@ -102,7 +102,7 @@ MPU6050 mpu;
 // from the FIFO. Note this also requires gravity vector calculations.
 // Also note that yaw/pitch/roll angles suffer from gimbal lock (for
 // more info, see: http://en.wikipedia.org/wiki/Gimbal_lock)
-#define OUTPUT_READABLE_YAWPITCHROLL
+//#define OUTPUT_READABLE_YAWPITCHROLL
 
 // uncomment "OUTPUT_READABLE_REALACCEL" if you want to see acceleration
 // components with gravity removed. This acceleration reference frame is
@@ -115,7 +115,7 @@ MPU6050 mpu;
 // components with gravity removed and adjusted for the world frame of
 // reference (yaw is relative to initial orientation, since no magnetometer
 // is present in this case). Could be quite handy in some cases.
-//#define OUTPUT_READABLE_WORLDACCEL
+#define OUTPUT_READABLE_WORLDACCEL
 
 // uncomment "OUTPUT_TEAPOT" if you want output that matches the
 // format used for the InvenSense teapot demo
@@ -612,7 +612,7 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   delay(3000);
   prev = millis();
-  
+
 }
 
 
@@ -624,8 +624,8 @@ void setup() {
 void loop() {
   int current = millis();
   if (!STATE)
-    STATE = loc.forward(10000);
-  if (current - prev >= 500)
+    STATE = loc.forward(5000);
+  if (current - prev >= 5)
   {
     if (!dmpReady) return;
     // read a packet from FIFO
@@ -695,11 +695,15 @@ void loop() {
       mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
       mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
       Serial.print("aworld\t");
-      Serial.print(aaWorld.x);
+      Serial.println(aaWorld.x);
       Serial.print("\t");
-      Serial.print(aaWorld.y);
-      Serial.print("\t");
-      Serial.println(aaWorld.z);
+//      Serial.print(aaWorld.y);
+//      Serial.print("\t");
+//      Serial.println(aaWorld.z);
+      char jsonStr[80];
+      sprintf(jsonStr, " %.0f", aaWorld.x);
+      udp.broadcast(jsonStr);
+
 #endif
 
 #ifdef OUTPUT_TEAPOT
