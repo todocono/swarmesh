@@ -18,7 +18,7 @@
 using namespace std;
 using namespace webots;
 
-static const double maxSpeed = 4.0;
+static const double maxSpeed = 4.3;
 
 int* POS;
 int ORI;
@@ -129,11 +129,12 @@ void Slave::_del_dst_lst(int idx)
 void Slave::load_dst(string jTask, int* POS)
 {
     for (int i = 0; i < 2; i++) _init_pos[i] = POS[i];
-    string charSize(1, jTask[2]);
-    _lst_size = stoi(charSize);
+    string size_first(1, jTask[2]);
+    string size_second(1, jTask[3]);
+    _lst_size = stoi(size_first + size_second);
 
     _dst_lst = (int**)malloc(sizeof(int*) * _lst_size);
-    unsigned int i = 4;
+    unsigned int i = 5;
     int idx = 0;
     int x;
     int z;
@@ -456,7 +457,32 @@ void Slave::actionDecoder(int ORI, int* POS, int* DST)
     //  calculate the robots' absolute position
     int x = DST[0] - POS[0];
     int y = DST[1] - POS[1];
-    if (abs(ORI) <= 5 || abs(ORI) >= 355)
+    if (abs(ORI) <= 3 || abs(ORI) >= 357)
+    {
+        if (y <= -1)
+        {
+            STATE = 1;
+        }
+        else if (y >= 1)
+        {
+            STATE = 3;
+            new_ORI = 180;
+        }
+        else
+        {
+            if (x >= 1)
+            {
+                STATE = 3;
+                new_ORI = 90;
+            }
+            else if (x <= -1)
+            {
+                STATE = 2;
+                new_ORI = 270;
+            }
+        }
+    }
+    else if (ORI >= 87 && ORI <= 93)
     {
         if (x >= 1)
         {
@@ -465,23 +491,23 @@ void Slave::actionDecoder(int ORI, int* POS, int* DST)
         else if (x <= -1)
         {
             STATE = 3;
-            new_ORI = 180;
+            new_ORI = 270;
         }
         else
         {
             if (y >= 1)
             {
                 STATE = 3;
-                new_ORI = 90;
+                new_ORI = 180;
             }
             else if (y <= -1)
             {
                 STATE = 2;
-                new_ORI = 270;
+                new_ORI = 0;
             }
         }
     }
-    else if (ORI >= 85 && ORI <= 95)
+    else if (ORI >= 177 && ORI <= 183)
     {
         if (y >= 1)
         {
@@ -490,69 +516,45 @@ void Slave::actionDecoder(int ORI, int* POS, int* DST)
         else if (y <= -1)
         {
             STATE = 3;
-            new_ORI = 270;
+            new_ORI = 0;
         }
         else
         {
             if (x >= 1)
             {
                 STATE = 2;
-                new_ORI = 0;
-            }
-            else if (x <= -1)
-            {
-                STATE = 3;
-                new_ORI = 180;
-            }
-        }
-    }
-    else if (ORI >= 175 && ORI <= 185)
-    {
-        if (x >= 1)
-        {
-            STATE = 3;
-            new_ORI = 360;
-        }
-        else if (x <= -1)
-        {
-            STATE = 1;
-        }
-        else
-        {
-            if (y >= 1)
-            {
-                STATE = 2;
                 new_ORI = 90;
             }
-            else if (y <= -1)
+            else if (x <= -1)
             {
                 STATE = 3;
                 new_ORI = 270;
             }
         }
     }
-    else if (ORI >= 265 && ORI <= 275)
+    else if (ORI >= 267 && ORI <= 273)
     {
-        if (x >= 1)
+        if (x <= -1)
+        {
+            STATE = 1;
+        }
+        else if (x >= 1)
         {
             STATE = 3;
-            new_ORI = 360;
+            new_ORI = 90;
         }
-        else if (x <= -1)
-        {
-            STATE = 2;
-            new_ORI = 180;
-        }
+
         else
         {
             if (y >= 1)
             {
-                STATE = 3;
-                new_ORI = 90;
+                STATE = 2;
+                new_ORI = 180;
             }
             else if (y <= -1)
             {
-                STATE = 1;
+                STATE = 3;
+                new_ORI = 0;
             }
         }
     }
