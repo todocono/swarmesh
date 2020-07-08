@@ -2,13 +2,6 @@
 /////////////////////////////////////THE ID OF THE ROBOT NEEDS TO BE SET ACCORDING TO THE ARUCO CODE IT CARRIES/////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//#define PWMA 27
-//#define DIRA 14
-//#define PWMB 12
-//#define DIRB 13
-//#define PULSE 7
-//SET ACCORDING TO THE ARUCO CODE
-
 #include <ArduinoJson.h>
 #include "WiFi.h"
 #include "AsyncUDP.h"
@@ -38,23 +31,23 @@ void IRAM_ATTR isr2()
 
 class Motor
 {
-  private:
-    Encoder *_encoder;
-    int _PWM;
-    int _DIR;
-    int _IDX;
-    uint8_t _PIN;
-    void _reset_encoder();
+private:
+  Encoder *_encoder;
+  int _PWM;
+  int _DIR;
+  int _IDX;
+  uint8_t _PIN;
+  void _reset_encoder();
 
-  public:
-    Motor(Encoder *encoder, int PWM, int DIR, int IDX);
-    void motor_move(int spd, int dir);
-    void motor_stop();
-    const int get_idx();
-    const int get_pwm();
-    const int get_dir();
-    const int get_tick();
-    const uint8_t get_pin();
+public:
+  Motor(Encoder *encoder, int PWM, int DIR, int IDX);
+  void motor_move(int spd, int dir);
+  void motor_stop();
+  const int get_idx();
+  const int get_pwm();
+  const int get_dir();
+  const int get_tick();
+  const uint8_t get_pin();
 };
 
 Motor::Motor(Encoder *encoder, int PWM, int DIR, int IDX)
@@ -118,39 +111,39 @@ const uint8_t Motor::get_pin()
 
 class Locomotion
 {
-  private:
-    Motor _motor1;
-    Motor _motor2;
-    Motor *_motors;
-    int _PULSE;
-    int _width;
-    int _off_course;
-    int _prev_tick[2];
-    int _calc_ori(int ori);
-    int _calc_error(int *pos, const char *traj);
+private:
+  Motor _motor1;
+  Motor _motor2;
+  Motor *_motors;
+  int _PULSE;
+  int _width;
+  int _off_course;
+  int _prev_tick[2];
+  int _calc_ori(int ori);
+  int _calc_error(int *pos, const char *traj);
 
-  public:
-    Locomotion(Encoder *encoder1, Encoder *encoder2);
-    //    PID
-    //    unsigned long lastTime;
-    //    double Input, Output, Setpoint;
-    //    double errSum, lastErr;
-    //    double kp, ki, kd;
-    //    int SampleTime = 1000; //1 sec
-    //    PID
-    float pos[3];
-    int get_pulse();
-    int forward(int dist);
-    int turn(int deg, char dir);
-    int *get_tick(int *tick);
-    void motor_init();
-    void encoder_reset();
-    void pid_compute();
-    void pid_tuning(double Kp, double Ki, double Kd);
+public:
+  Locomotion(Encoder *encoder1, Encoder *encoder2);
+  //    PID
+  //    unsigned long lastTime;
+  //    double Input, Output, Setpoint;
+  //    double errSum, lastErr;
+  //    double kp, ki, kd;
+  //    int SampleTime = 1000; //1 sec
+  //    PID
+  float pos[3];
+  int get_pulse();
+  int forward(int dist);
+  int turn(int deg, char dir);
+  int *get_tick(int *tick);
+  void motor_init();
+  void encoder_reset();
+  void pid_compute();
+  void pid_tuning(double Kp, double Ki, double Kd);
 };
 
 Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1, 27, 14, 1),
-  _motor2(encoder2, 12, 13, 2)
+                                                               _motor2(encoder2, 12, 13, 2)
 {
   _PULSE = 7;
   _width = 800;
@@ -175,62 +168,59 @@ int Locomotion::forward(int dist)
       spd = (dist - tick1) * 0.8;
       spd = map(spd, 0, 250, 120, 200);
     }
-    //    if (abs(tick1 - tick2) > 5)
-    //    {
-    //      if (tick1 < tick2)
-    //      {
-    //        int error = (tick2 - tick1) * 0.5;
-    //        _motor1.motor_move(spd + error, 0);
-    //        _motor2.motor_move(spd - error, 0);
-    //      }
-    //      else if (tick1 > tick2)
-    //      {
-    //        int error = (tick1 - tick2) * 0.5;
-    //        _motor1.motor_move(spd - error, 0);
-    //        _motor2.motor_move(spd + error, 0);
-    //      }
-    //    }
+    if (abs(tick1 - tick2) > 5)
+    {
+      if (tick1 < tick2)
+      {
+        int error = (tick2 - tick1) * 0.5;
+        _motor1.motor_move(spd + error, 0);
+        _motor2.motor_move(spd - error, 0);
+      }
+      else if (tick1 > tick2)
+      {
+        int error = (tick1 - tick2) * 0.5;
+        _motor1.motor_move(spd - error, 0);
+        _motor2.motor_move(spd + error, 0);
+      }
+    }
     _motor1.motor_move(spd, 0);
     _motor2.motor_move(spd, 0);
     int tick1 = _motor1.get_tick();
     int tick2 = _motor2.get_tick();
     int ori = pos[2];
-    if (abs(tick1 - tick2) > 10 && !_off_course)
-    {
-      _off_course = 1;
-      int rotation = (tick2 - tick1) / _width;
-      int radius = _width * (tick1 + tick2) / 2 * (tick2 - tick1);
-      if (tick1 > tick2)
-      {
-        // right rotation
-        pos[0] = radius * sin((pos[2] + rotation) * PI / 180) + pos[0] - radius * sin(pos[2]);
-        pos[1] = -radius * cos((pos[2] + rotation) * PI / 180) + pos[1] + radius * cos(pos[2]);
-        pos[2] += rotation;
-        if (pos[2] > 180)
-          pos[2] -= 360;
-      }
-      else
-      {
-        // left rotation
-        pos[0] = radius * sin((pos[2] - rotation) * PI / 180) + pos[0] - radius * sin(pos[2]);
-        pos[1] = -radius * cos((pos[2] - rotation) * PI / 180) + pos[1] + radius * cos(pos[2]);
-        pos[2] -= rotation;
-        if (pos[2] < -180)
-          pos[2] += 360;
-      }
-    }
-    else
-    {
-      if (abs(ori <= 5))
-        pos[1] -= tick1 - _prev_tick[0];
-      else if (abs(ori) >= 175)
-        pos[1] += tick1 - _prev_tick[0];
-      else if (ori <= 95 && ori >= 85)
-        pos[0] += tick1 - _prev_tick[0];
-      else if (ori <= -85 && ori >= -95)
-        pos[0] -= tick1 - _prev_tick[0];
-      _prev_tick[0] = tick1;
-    }
+    // if (abs(tick1 - tick2) > 10 && !_off_course)
+    // {
+    //   _off_course = 1;
+    //   int rotation = (tick2 - tick1) / _width;
+    //   int radius = _width * (tick1 + tick2) / 2 * (tick2 - tick1);
+    //   if (tick1 > tick2)
+    //   {
+    //     // right rotation
+    //     pos[0] = radius * sin((pos[2] + rotation) * PI / 180) + pos[0] - radius * sin(pos[2]);
+    //     pos[1] = -radius * cos((pos[2] + rotation) * PI / 180) + pos[1] + radius * cos(pos[2]);
+    //     pos[2] += rotation;
+    //     if (pos[2] > 180)
+    //       pos[2] -= 360;
+    //   }
+    //   else
+    //   {
+    //     // left rotation
+    //     pos[0] = radius * sin((pos[2] - rotation) * PI / 180) + pos[0] - radius * sin(pos[2]);
+    //     pos[1] = -radius * cos((pos[2] - rotation) * PI / 180) + pos[1] + radius * cos(pos[2]);
+    //     pos[2] -= rotation;
+    //     if (pos[2] < -180)
+    //       pos[2] += 360;
+    //   }
+    // }
+    if (abs(ori <= 5))
+      pos[1] -= tick1 - _prev_tick[0];
+    else if (abs(ori) >= 175)
+      pos[1] += tick1 - _prev_tick[0];
+    else if (ori <= 95 && ori >= 85)
+      pos[0] += tick1 - _prev_tick[0];
+    else if (ori <= -85 && ori >= -95)
+      pos[0] -= tick1 - _prev_tick[0];
+    _prev_tick[0] = tick1;
     return 0;
   }
   else
@@ -250,15 +240,15 @@ int Locomotion::turn(int deg, char dir)
   int num2;
   switch (dir)
   {
-    case 'L':
-      num1 = 0;
-      num2 = 1;
-      break;
+  case 'L':
+    num1 = 0;
+    num2 = 1;
+    break;
 
-    case 'R':
-      num1 = 1;
-      num2 = 0;
-      break;
+  case 'R':
+    num1 = 1;
+    num2 = 0;
+    break;
   }
   if (_motor1.get_tick() <= _PULSE * deg)
   {
@@ -271,7 +261,6 @@ int Locomotion::turn(int deg, char dir)
     //    } else {
     _motor1.motor_move(100, num1);
     _motor2.motor_move(100, num2);
-    //    }
     int tick = _motor1.get_tick();
     _prev_tick[0] = tick;
     return 0;
@@ -280,16 +269,16 @@ int Locomotion::turn(int deg, char dir)
   {
     switch (dir)
     {
-      case 'L':
-        pos[2] -= deg;
-        if (pos[2] < -180)
-          pos[2] += 360;
-        break;
-      case 'R':
-        pos[2] += deg;
-        if (pos[2] > 180)
-          pos[2] -= 360;
-        break;
+    case 'L':
+      pos[2] -= deg;
+      if (pos[2] < -180)
+        pos[2] += 360;
+      break;
+    case 'R':
+      pos[2] += deg;
+      if (pos[2] > 180)
+        pos[2] -= 360;
+      break;
     }
     for (int i = 0; i < 2; i++)
     {
@@ -340,34 +329,183 @@ int Locomotion::get_pulse()
   return _PULSE;
 }
 
-class Robot
+class Destinations
 {
   private:
-    int _ptr;
-    int _turn;
-    int _dist;
-    int _error;
-    int _STATE;
-    int _width;
-    int _task_size;
-    int _off_course;
-    int _prev_tick[2];
-    int **_route;
-    float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
-    Locomotion _loc;
+    int **_dst_lst;
+    int *_dst;
+    int *_init_pos;
+    int _lst_size;
+    void _del_dst_lst(int idx);
 
   public:
-    Robot(Encoder *encoder1, Encoder *encoder2);
-    int *get_pos();
-    int get_state();
-    void robot_init();
-    void calc_error();
-    void check_task();
-    void update_est();
-    void main_executor();
-    void action_decoder();
-    void update_abs(int *pos);
-    void auto_route();
+    Destinations();
+    void set_class();
+    void load_dst(DynamicJsonDocument &jTask, int *POS);
+    void select_dst(int *POS);
+    void proceed_dst(DynamicJsonDocument &jDst, int *POS);
+    int* get_dst();
+    int arrive_dst(int *POS);
+};
+
+Destinations::Destinations()
+{
+  int **_dst_lst;
+  int *_dst;
+  int *_init_pos;
+  int _lst_size;
+}
+
+void Destinations::set_class() {
+  _dst = (int *)malloc(sizeof(int) * 2);
+  _init_pos = (int *)malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i ++) _dst[i] = -1;
+}
+
+void Destinations::_del_dst_lst(int idx)
+{
+  //  _dst[0] = _dst_lst[idx][0];
+  //  _dst[1] = _dst_lst[idx][1];
+  // swap the value at index with the last element
+  _dst_lst[idx][0] = _dst_lst[_lst_size - 1][0];
+  _dst_lst[idx][1] = _dst_lst[_lst_size - 1][1];
+  // modify _dst_lst and get rid of the smallest element
+  _lst_size--;
+  Serial.print("Reduced List Size: ");
+  Serial.println(_lst_size);
+  int **new_ptr = (int **)malloc(sizeof(int *) * (_lst_size));
+  for (int i = 0; i < _lst_size; i++)
+  {
+    new_ptr[i] = (int *)malloc(sizeof(int) * 2);
+    for (int j = 0; j < 2; j++)
+    {
+      new_ptr[i][j] = _dst_lst[i][j];
+    }
+    free(_dst_lst[i]);
+  }
+  free(_dst_lst);
+  _dst_lst = new_ptr;
+}
+
+void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
+{
+  for (int i = 0; i < 2; i ++) _init_pos[i] = POS[i];
+  _lst_size = jTask["Num"];
+  Serial.print("Task size: ");
+  Serial.println(_lst_size);
+  _dst_lst = (int **)malloc(sizeof(int *) * _lst_size);
+  // load json destination coordinates into the two-dimensional array
+  for (int i = 0; i < _lst_size; i++)
+  {
+    _dst_lst[i] = (int *)malloc(sizeof(int) * 2);
+    for (int j = 0; j < 2; j++)
+    {
+      _dst_lst[i][j] = jTask["Task"][i][j];
+    }
+  }
+  // automatically acquire the next destination by calling the function
+  select_dst(POS);
+}
+
+void Destinations::select_dst(int *POS)
+{
+  // select the destination with the least manhattan distance
+  int x = _dst_lst[0][0];
+  int y = _dst_lst[0][1];
+  int idx = 0;
+  int dist = (abs(x - POS[0]) + abs(y - POS[1]));
+  for (int i = 0; i < _lst_size; i++)
+  {
+    x = _dst_lst[i][0];
+    y = _dst_lst[i][1];
+    int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
+    if (new_dist < dist)
+    {
+      dist = new_dist;
+      idx = i;
+    }
+  }
+  for (int i = 0; i < 2; i ++) _dst[i] = _dst_lst[idx][i];
+  _del_dst_lst(idx);
+}
+
+void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
+{
+  int *dst = (int *)malloc(sizeof(int) * 2);
+  dst[0] = jDst["Pos"][0];
+  dst[1] = jDst["Pos"][1];
+  Serial.println(_lst_size);
+  if (_lst_size > 0)
+  {
+    // proceed to the next least distance point
+    if (dst[0] == _dst[0] && dst[1] == _dst[1])
+    {
+      select_dst(POS);
+    }
+    else
+    {
+      // get the id of the element
+      int idx = -1;
+      for (int i = 0; i < _lst_size; i++)
+      {
+        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1]) idx = i;
+      }
+      //      filter out destination of robots going back to their origin
+      if (idx >= 0) _del_dst_lst(idx);
+    }
+  }
+  else
+  {
+    // run out of available Destinations
+    // go back to original point
+    //    only doing so when the last destination conflicts the destination taken by others
+    if (dst[0] == _dst[0] && dst[1] == _dst[1]) {
+      for (int i = 0; i < 2; i ++) _dst[i] = _init_pos[i];
+    }
+  }
+}
+
+int* Destinations::get_dst() {
+  int* new_ptr = (int*) malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i ++) new_ptr[i] = _dst[i];
+  return new_ptr;
+}
+
+int Destinations::arrive_dst(int *POS)
+{
+  if (POS[0] == _dst[0] && POS[1] == _dst[1]) return 1;
+  return 0;
+}
+
+class Robot
+{
+private:
+  int _ptr;
+  int _turn;
+  int _dist;
+  int _error;
+  int _STATE;
+  int _width;
+  int _task_size;
+  int _off_course;
+  int _dst[2];
+  int _prev_tick[2];
+  int **_route;
+  float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
+  Locomotion _loc;
+
+public:
+  Robot(Encoder *encoder1, Encoder *encoder2);
+  float *get_pos();
+  int get_state();
+  void robot_init();
+  void calc_error();
+  void check_task();
+  void update_est();
+  void main_executor();
+  void action_decoder();
+  void update_abs(int *pos);
+  void auto_route();
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
@@ -381,7 +519,7 @@ Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
 
 float *Robot::get_pos()
 {
-  float *ptr = (int *)malloc(sizeof(int) * 3);
+  float *ptr = (float *)malloc(sizeof(float) * 3);
   for (int i = 0; i < 3; i++)
     ptr[i] = _pos[i];
   return ptr;
@@ -399,7 +537,7 @@ void Robot::robot_init()
 
 void Robot::calc_error()
 {
-  int *pos = get_pos();
+  float *pos = get_pos();
   int error;
   int *prev_task = _route[_ptr - 1];
   int *crt_task = _route[_ptr];
@@ -444,6 +582,10 @@ void Robot::update_abs(int *pos)
   for (int i = 0; i < 3; i++)
     _pos[i] = pos[i];
 }
+
+/* 
+ Below was code for position estimation based on encoders
+ */
 
 //void Robot::update_est()
 //{
@@ -539,26 +681,26 @@ void Robot::main_executor()
   int proceed = 0;
   switch (_STATE)
   {
-    case 0:
-      check_task();
-      if (_STATE != 4)
-        action_decoder();
-      break;
-    case 1:
-      proceed = _loc.forward(_dist);
-      Serial.println("Moving forward");
-      break;
-    case 2:
-      proceed = _loc.turn(_turn, 'L');
-      Serial.println("turning left");
-      break;
-    case 3:
-      proceed = _loc.turn(_turn, 'R');
-      Serial.println("turning right");
-      break;
-    case 4:
-      Serial.println("arrived");
-      break;
+  case 0:
+    check_task();
+    if (_STATE != 4)
+      action_decoder();
+    break;
+  case 1:
+    proceed = _loc.forward(_dist);
+    Serial.println("Moving forward");
+    break;
+  case 2:
+    proceed = _loc.turn(_turn, 'L');
+    Serial.println("turning left");
+    break;
+  case 3:
+    proceed = _loc.turn(_turn, 'R');
+    Serial.println("turning right");
+    break;
+  case 4:
+    Serial.println("arrived");
+    break;
   }
   if (proceed)
     _STATE = 0;
@@ -568,7 +710,7 @@ void Robot::main_executor()
 
 void Robot::action_decoder()
 {
-  int *pos = get_pos();
+  float *pos = get_pos();
   int x = _route[_ptr][0] - pos[0];
   int y = _route[_ptr][1] - pos[1];
   free(pos);
@@ -689,7 +831,7 @@ void Robot::action_decoder()
 
 void Robot::check_task()
 {
-  int *pos = get_pos();
+  float *pos = get_pos();
   Serial.println("Checking available tasks");
   if (abs(pos[0] - _route[_ptr][0]) <= 5 && abs(pos[1] == _route[_ptr][1]) <= 5)
   {
@@ -756,21 +898,23 @@ void loop()
 {
   robot.main_executor();
 
-  int *pos = robot.get_pos();
-  Serial.print(pos[0]); Serial.print("  "); Serial.println(pos[1]);
-//  char jsonStr[80];
-//  //              jsonCreator(jsonStr);
-//  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
-//  DynamicJsonDocument doc(capacity);
-//  doc["Purpose"] = 3;
-//  JsonArray Pos = doc.createNestedArray("Pos");
-//  Pos.add(pos[0]);
-//  Pos.add(pos[1]);
-//  serializeJson(doc, jsonStr);
-//  doc.clear();
-//
-////  udp.broadcast(jsonStr);
-//  Serial.println("next iter");
+  float *pos = robot.get_pos();
+  Serial.print(pos[0]);
+  Serial.print("  ");
+  Serial.println(pos[1]);
+  //  char jsonStr[80];
+  //  //              jsonCreator(jsonStr);
+  //  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
+  //  DynamicJsonDocument doc(capacity);
+  //  doc["Purpose"] = 3;
+  //  JsonArray Pos = doc.createNestedArray("Pos");
+  //  Pos.add(pos[0]);
+  //  Pos.add(pos[1]);
+  //  serializeJson(doc, jsonStr);
+  //  doc.clear();
+  //
+  ////  udp.broadcast(jsonStr);
+  //  Serial.println("next iter");
 
   free(pos);
 
