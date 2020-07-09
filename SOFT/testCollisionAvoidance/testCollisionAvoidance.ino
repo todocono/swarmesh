@@ -118,6 +118,7 @@ void Emitter::emitter_control()
     public:
         ColAvo();
         void collision_avoidance_init();
+        void collision_avoidance_main();
     }
 
     ColAvo::ColAvo() : _emitter(23)
@@ -127,4 +128,17 @@ void Emitter::emitter_control()
         _receivers[2] = Receiver(34, 2);
         _receivers[3] = Receiver(36, 3);
         _receivers[4] = Receiver(39, 4);
+    }
+
+    void ColAvo::collision_avoidance_init()
+    {
+        analogSetWidth(12);
+        for (int i = 0; i < 5; i ++)
+            _receivers[i].receiver_init();
+        _emitter.emitter_init();
+    }
+
+    void ColAvo::collision_avoidance_main()
+    {
+        _emitter.emitter_control();
     }
