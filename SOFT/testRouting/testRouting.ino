@@ -124,13 +124,6 @@ private:
 
 public:
   Locomotion(Encoder *encoder1, Encoder *encoder2);
-  //    PID
-  //    unsigned long lastTime;
-  //    double Input, Output, Setpoint;
-  //    double errSum, lastErr;
-  //    double kp, ki, kd;
-  //    int SampleTime = 1000; //1 sec
-  //    PID
   float pos[3];
   int get_pulse();
   int forward(int dist);
@@ -329,37 +322,258 @@ int Locomotion::get_pulse()
   return _PULSE;
 }
 
+class Receiver
+{
+private:
+  int _idx;
+  int _pin_num;
+  int _reading;
+
+public:
+  Receiver(int pin_num, int idx);
+  int get_idx();
+  int get_pin();
+  int get_reading();
+  void receiver_init();
+  void receiver_read();
+};
+
+Receiver::Receiver(int pin_num, int idx)
+{
+  _idx = idx;
+  _pin_num = pin_num;
+}
+
+int Receiver::get_idx()
+{
+  return _idx;
+}
+
+int Receiver::get_pin()
+{
+  return _idx;
+}
+
+int Receiver::get_reading()
+{
+  return _reading;
+}
+
+void Receiver::receiver_init()
+{
+  analogSetPinAttenuation(get_pin(), ADC_11db);
+}
+
+void Receiver::receiver_read()
+{
+  _reading = analogRead(get_pin());
+}
+
+class Emitter
+{
+private:
+  int _em_tx;
+  int _on_interval;
+  int _off_interval;
+  int _emitter_state;
+  float _emitter_timer;
+
+public:
+  Emitter(int em_tx);
+  void emitter_on();
+  void emitter_off();
+  void emitter_init();
+  void emitter_control();
+};
+
+Emitter::Emitter(int em_tx)
+{
+  _em_tx = em_tx;
+  _on_interval = 1;
+  _off_interval = 20;
+  _emitter_state = 0;
+}
+
+void Emitter::emitter_init()
+{
+  pinMode(_em_tx, OUTPUT);
+  _emitter_timer = millis();
+}
+
+void Emitter::emitter_on()
+{
+  digitalWrite(_em_tx, HIGH);
+}
+
+void Emitter::emitter_off()
+{
+  digitalWrite(_em_tx, LOW);
+}
+
+void Emitter::emitter_control()
+{
+  if (_emitter_state) // emitter is turned on
+  {
+    float current = millis();
+    if (current - _emitter_timer > _on_interval)
+    {
+      emitter_off();
+      _emitter_timer = millis();
+      _emitter_state = 0;
+    }
+  }
+  else
+  {
+    float current = millis();
+    if (current - _emitter_timer > _off_interval)
+    {
+      emitter_on();
+      _emitter_timer = millis();
+      _emitter_state = 1;
+    }
+  }
+}
+
+class Collision
+{
+private:
+  Emitter _emitter;
+  Receiver _receivers[5];
+  int _receiver_readings[5];
+  int _collision_state;
+  int _collision_timer;
+
+public:
+  Collision(int pin_em);
+  int get_collision_timer();
+  int get_collision_state();
+  int decode_readings(int idx);
+  int collision_avoidance_main();
+  void update_readings();
+  void reset_collision_state();
+  void reset_collision_timer();
+  void collision_avoidance_init();
+  void update_collision_timer(int num);
+  void update_collision_state(int num);
+};
+
+Collision::Collision(int pin_em) : _emitter(23),
+                                   _receivers{{32, 0}, {33, 1}, {34, 2}, {36, 3}, {39, 4}}
+{
+  reset_collision_timer();
+  reset_collision_state();
+  for (int i = 0; i < 5; i++)
+    _receiver_readings[i] = 0;
+}
+
+int Collision::decode_readings(int idx)
+{
+  if (_receiver_readings[idx] >= 2000)
+    return 1;
+  return 0;
+}
+
+void Collision::update_readings()
+{
+  for (int i = 0; i < 5; i++)
+  {
+    _receivers[i].receiver_read();
+    _receiver_readings[i] = _receivers[i].get_reading();
+  }
+}
+
+void Collision::collision_avoidance_init()
+{
+  analogSetWidth(12);
+  for (int i = 0; i < 5; i++)
+    _receivers[i].receiver_init();
+  _emitter.emitter_init();
+}
+
+int Collision::get_collision_state()
+{
+  return _collision_state;
+}
+
+int Collision::get_collision_timer()
+{
+  return _collision_timer;
+}
+
+int Collision::collision_avoidance_main()
+{
+  _emitter.emitter_control();
+  update_readings();
+  if (decode_readings(2))
+  // robot in front
+  // initiate random timer to communicate
+  {
+    update_collision_timer(1);
+    update_collision_state(1);
+  }
+  else if (decode_readings(3) || decode_readings(4))
+  // robot on the right
+  // this robot has priority to pass
+  {
+    update_collision_timer(10);
+    update_collision_state(2);
+  }
+  else if (decode_readings(0) || decode_readings(1))
+  // robot on the left
+  {
+    update_collision_state(3);
+  }
+  else
+  {
+    update_collision_state(0);
+  }
+  // no robot blocking the way
+  // clear to go
+  return _collision_state;
+}
+
+void Collision::reset_collision_state()
+{
+  _collision_state = 0;
+}
+
+void Collision::reset_collision_timer()
+{
+  _collision_timer = 0;
+}
+
+void Collision::update_collision_state(int num)
+{
+  _collision_state = num;
+}
+
+void Collision::update_collision_timer(int num)
+{
+  _collision_timer = num;
+}
+
 class Destinations
 {
-  private:
-    int **_dst_lst;
-    int *_dst;
-    int *_init_pos;
-    int _lst_size;
-    void _del_dst_lst(int idx);
+private:
+  int **_dst_lst;
+  int _dst[2];
+  int _init_pos[2];
+  int _lst_size;
+  void _del_dst_lst(int idx);
 
-  public:
-    Destinations();
-    void set_class();
-    void load_dst(DynamicJsonDocument &jTask, int *POS);
-    void select_dst(int *POS);
-    void proceed_dst(DynamicJsonDocument &jDst, int *POS);
-    int* get_dst();
-    int arrive_dst(int *POS);
+public:
+  Destinations();
+  void select_dst(int *POS);
+  void load_dst(DynamicJsonDocument &jTask, int *POS);
+  void proceed_dst(DynamicJsonDocument &jDst, int *POS);
+  int arrive_dst(int *POS);
+  int *get_dst();
 };
 
 Destinations::Destinations()
 {
-  int **_dst_lst;
-  int *_dst;
-  int *_init_pos;
-  int _lst_size;
-}
-
-void Destinations::set_class() {
-  _dst = (int *)malloc(sizeof(int) * 2);
-  _init_pos = (int *)malloc(sizeof(int) * 2);
-  for (int i = 0; i < 2; i ++) _dst[i] = -1;
+  for (int i = 0; i < 2; i++)
+    _dst[i] = -1;
 }
 
 void Destinations::_del_dst_lst(int idx)
@@ -389,7 +603,8 @@ void Destinations::_del_dst_lst(int idx)
 
 void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
 {
-  for (int i = 0; i < 2; i ++) _init_pos[i] = POS[i];
+  for (int i = 0; i < 2; i++)
+    _init_pos[i] = POS[i];
   _lst_size = jTask["Num"];
   Serial.print("Task size: ");
   Serial.println(_lst_size);
@@ -425,7 +640,8 @@ void Destinations::select_dst(int *POS)
       idx = i;
     }
   }
-  for (int i = 0; i < 2; i ++) _dst[i] = _dst_lst[idx][i];
+  for (int i = 0; i < 2; i++)
+    _dst[i] = _dst_lst[idx][i];
   _del_dst_lst(idx);
 }
 
@@ -448,32 +664,36 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
       int idx = -1;
       for (int i = 0; i < _lst_size; i++)
       {
-        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1]) idx = i;
+        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1])
+          idx = i;
       }
       //      filter out destination of robots going back to their origin
-      if (idx >= 0) _del_dst_lst(idx);
+      if (idx >= 0)
+        _del_dst_lst(idx);
     }
   }
   else
   {
-    // run out of available Destinations
-    // go back to original point
-    //    only doing so when the last destination conflicts the destination taken by others
-    if (dst[0] == _dst[0] && dst[1] == _dst[1]) {
-      for (int i = 0; i < 2; i ++) _dst[i] = _init_pos[i];
+    if (dst[0] == _dst[0] && dst[1] == _dst[1])
+    {
+      for (int i = 0; i < 2; i++)
+        _dst[i] = _init_pos[i];
     }
   }
 }
 
-int* Destinations::get_dst() {
-  int* new_ptr = (int*) malloc(sizeof(int) * 2);
-  for (int i = 0; i < 2; i ++) new_ptr[i] = _dst[i];
+int *Destinations::get_dst()
+{
+  int *new_ptr = (int *)malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i++)
+    new_ptr[i] = _dst[i];
   return new_ptr;
 }
 
 int Destinations::arrive_dst(int *POS)
 {
-  if (POS[0] == _dst[0] && POS[1] == _dst[1]) return 1;
+  if (POS[0] == _dst[0] && POS[1] == _dst[1])
+    return 1;
   return 0;
 }
 
@@ -492,7 +712,9 @@ private:
   int _prev_tick[2];
   int **_route;
   float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
+  Collision _col;
   Locomotion _loc;
+  Destinations _dst;
 
 public:
   Robot(Encoder *encoder1, Encoder *encoder2);
@@ -502,13 +724,15 @@ public:
   void calc_error();
   void check_task();
   void update_est();
+  void auto_route();
   void main_executor();
   void action_decoder();
+  void reroute(char dir);
   void update_abs(int *pos);
-  void auto_route();
 };
 
-Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
+Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2),
+                                                     _col(23)
 {
   _ptr = 1;
   _STATE = 0;
@@ -533,6 +757,7 @@ int Robot::get_state()
 void Robot::robot_init()
 {
   _loc.motor_init();
+  _col.collision_avoidance_init()
 }
 
 void Robot::calc_error()
@@ -564,16 +789,22 @@ void Robot::calc_error()
 void Robot::auto_route()
 {
   // A* routing algorithm goes here
-  int inter = 1;
-  _route = (int **)malloc(sizeof(int *) * (inter + 1));
+  int *dst = _dst.get_dst();
+  int x_distance = (dst[0] - _pos[0]) / 15;
+  int y_distance = (dst[1] - _pos[1]) / 15;
+  // randomly decide where to break the route
+  int random = rand() % x_distance;
+  _route = (int **)malloc(sizeof(int *) * 4);
   for (int i = 0; i < (inter + 1); i++)
     _route[i] = (int *)malloc(sizeof(int) * 2);
   //  hard-coding the current position and the destination
   for (int i = 0; i < 2; i++)
     _route[0][i] = _pos[i];
-  _route[1][0] = 2000;
-  _route[1][1] = 0;
-  _task_size = inter + 1;
+  _task_size = 4;
+  _route[1] = [ _pos[0] + random * 15, _pos[1] ];
+  _route[2] = [ _route[1][0], _route[1][1] + y_distance ];
+  _route[3] = [ dst[0], dst[1] ];
+  free(dst);
 }
 
 // this function would be called when the encoder ticks or when the server updates the robots global position
@@ -676,6 +907,98 @@ void Robot::update_abs(int *pos)
 //    _prev_tick[i] = encoder_tick[i];
 //}
 
+void Robot::reroute(char dir)
+{
+  int **new_route = (int **)malloc(sizeof(int *) * (_task_size + 3));
+  int new_ptr0[2], new_ptr1[2], new_ptr2[2];
+  for (int i = 0; i < 2; i++)
+    new_ptr0[i] = _pos[i];
+  for (int i = 0; i < (_task_size + 2); i++)
+    new_route[i] = (int *)malloc(sizeof(int) * 2);
+  if (dir == 'L')
+  {
+    if (abs(_pos[2]) < 5)
+    {
+      new_ptr1[0] = _route[_ptr][0] - 1500;
+      new_ptr1[1] = new_ptr0[1];
+      new_ptr2[0] = new_ptr1[0];
+      new_ptr2[1] = _route[_ptr][1];
+    }
+    else if (abs(_pos[2]) > 175)
+    {
+      new_ptr1[0] = _route[_ptr][0] + 1500;
+      new_ptr1[1] = new_ptr0[1];
+      new_ptr2[0] = new_ptr1[0];
+      new_ptr2[1] = _route[_ptr][1];
+    }
+    else if (_pos[2] > 85 && _pos[2] < 95)
+    {
+      new_ptr1[0] = new_ptr0[0];
+      new_ptr1[1] = _route[_ptr][1] - 1500;
+      new_ptr2[0] = _route[_ptr][0];
+      new_ptr2[1] = new_ptr1[1];
+    }
+    else if (_pos[2] < -85 && _pos[2] > -95)
+    {
+      new_ptr1[0] = new_ptr0[0];
+      new_ptr1[1] = _route[_ptr][1] + 1500;
+      new_ptr2[0] = _route[_ptr][0];
+      new_ptr2[1] = new_ptr1[1];
+    }
+  }
+  else
+  {
+    if (abs(_pos[2]) < 5)
+    {
+      new_ptr1[0] = _route[_ptr][0] + 1500;
+      new_ptr1[1] = new_ptr0[1];
+      new_ptr2[0] = new_ptr1[0];
+      new_ptr2[1] = _route[_ptr][1];
+    }
+    else if (abs(_pos[2]) > 175)
+    {
+      new_ptr1[0] = _route[_ptr][0] - 1500;
+      new_ptr1[1] = new_ptr0[1];
+      new_ptr2[0] = new_ptr1[0];
+      new_ptr2[1] = _route[_ptr][1];
+    }
+    else if (_pos[2] > 85 && _pos[2] < 95)
+    {
+      new_ptr1[0] = new_ptr0[0];
+      new_ptr1[1] = _route[_ptr][1] + 1500;
+      new_ptr2[0] = _route[_ptr][0];
+      new_ptr2[1] = new_ptr1[1];
+    }
+    else if (_pos[2] < -85 && _pos[2] > -95)
+    {
+      new_ptr1[0] = new_ptr0[0];
+      new_ptr1[1] = _route[_ptr][1] - 1500;
+      new_ptr2[0] = _route[_ptr][0];
+      new_ptr2[1] = new_ptr1[1];
+    }
+  }
+  for (int i = 0; i < _ptr - 1; i++)
+  {
+    for (int j = 0; j < 2; j++)
+      new_route[i][j] = _route[i][j];
+    free(_route[i]);
+  }
+  for (int i = 0; i < 2; i++)
+  {
+    new_route[_ptr][i] = new_ptr0[i];
+    new_route[_ptr + 1][i] = new_ptr1[i];
+    new_route[_ptr + 2][i] = new_ptr2[i];
+  }
+  for (int i = _ptr + 3; i < _task_size + 3; i ++)
+  {
+    for (int j = 0; j < 2; j ++)
+      new_route[i][j] = _route[i - 3][j];
+    free(_route[i]);
+  }
+  free(_route);
+  _route = new_route;
+}
+
 void Robot::main_executor()
 {
   int proceed = 0;
@@ -705,7 +1028,6 @@ void Robot::main_executor()
   if (proceed)
     _STATE = 0;
   // update_est();
-  Serial.println();
 }
 
 void Robot::action_decoder()
@@ -843,19 +1165,15 @@ void Robot::check_task()
       _STATE = 4;
       for (int i = 0; i < _task_size; i++)
         free(_route[i]);
-      //        clear every node in array
       free(_route);
       _task_size = 0;
-      //      _loc.reset_encoder();
       _ptr = 1;
       _turn = 0;
       _dist = 0;
       _error = 0;
     }
-    // not arrived at the final destination
     else
     {
-      //  robot execute the next task
       _ptr++;
     }
   }
