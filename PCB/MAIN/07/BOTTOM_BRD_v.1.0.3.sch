@@ -19617,7 +19617,7 @@ compact on PCB</text>
 <text x="100.965" y="-11.1125" size="1.778" layer="91">Note: Leave space for 
 other pins on IMU</text>
 <text x="135.255" y="60.96" size="1.778" layer="91">Note: Reset Button</text>
-<text x="229.87" y="-59.69" size="2.286" layer="94">Swarmesh 2020 v1.0.2</text>
+<text x="229.87" y="-59.69" size="2.286" layer="94">Swarmesh 2020 v1.0.3</text>
 <text x="176.53" y="-68.58" size="2.286" layer="94">NYU SHANGHAI
 SWARM ROBOTICS 2020
 
