@@ -19568,11 +19568,11 @@ package which blocks visible light</description>
 <part name="GND9" library="supply1" deviceset="GND" device=""/>
 <part name="GND29" library="supply1" deviceset="GND" device=""/>
 <part name="GND31" library="supply1" deviceset="GND" device=""/>
-<part name="XR1" library="ST188" deviceset="TCRT1000" device=""/>
-<part name="XR2" library="ST188" deviceset="TCRT1000" device=""/>
-<part name="XR3" library="ST188" deviceset="TCRT1000" device=""/>
-<part name="XR4" library="ST188" deviceset="TCRT1000" device=""/>
-<part name="XR5" library="ST188" deviceset="TCRT1000" device=""/>
+<part name="XR1" library="ST188" deviceset="TCRT1000" device="" value="ST188"/>
+<part name="XR2" library="ST188" deviceset="TCRT1000" device="" value="ST188"/>
+<part name="XR3" library="ST188" deviceset="TCRT1000" device="" value="ST188"/>
+<part name="XR4" library="ST188" deviceset="TCRT1000" device="" value="ST188"/>
+<part name="XR5" library="ST188" deviceset="TCRT1000" device="" value="ST188"/>
 <part name="Q4" library="TIP122" deviceset="TIP122" device="" value="TIP122"/>
 <part name="RB" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="R-US_" device="M0805" package3d_urn="urn:adsk.eagle:package:23556/2" value="1k"/>
 <part name="R11" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="R-US_" device="M0805" package3d_urn="urn:adsk.eagle:package:23556/2" value="10k"/>
