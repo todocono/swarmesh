@@ -20590,6 +20590,7 @@ ShareAlike 4.0 International</text>
 <label x="103.505" y="79.0575" size="1.778" layer="95"/>
 <wire x1="122.555" y1="78.74" x2="135.89" y2="78.74" width="0.1524" layer="91"/>
 <wire x1="122.555" y1="53.975" x2="122.555" y2="78.74" width="0.1524" layer="91"/>
+<junction x="122.555" y="78.74"/>
 </segment>
 </net>
 <net name="SDA" class="0">
