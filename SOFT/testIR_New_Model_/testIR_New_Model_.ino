@@ -51,4 +51,5 @@ void loop() {
   Serial.print("Reading5: ");
   Serial.println(reading5);
   Serial.println();
+  
 }
