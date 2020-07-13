@@ -30,7 +30,11 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  digitalWrite(23, LOW);
+  delay(20);
   digitalWrite(23, HIGH);
+  delay(1);
+
   int reading1 = analogRead(IR1);
   int reading2 = analogRead(IR2);
   int reading3 = analogRead(IR3);
@@ -47,4 +51,5 @@ void loop() {
   Serial.print("Reading5: ");
   Serial.println(reading5);
   Serial.println();
+  
 }
