@@ -28,31 +28,33 @@ void IRAM_ATTR isr2()
 
 class Destinations
 {
-  private:
-    int **_dst_lst;
-    int *_dst;
-    int *_init_pos;
-    int _lst_size;
-    void _del_dst_lst(int idx);
+private:
+  int **_dst_lst;
+  int *_dst;
+  int *_init_pos;
+  int _lst_size;
+  void _del_dst_lst(int idx);
 
-  public:
-    Destinations();
-    void dst_init();
-    void load_dst(DynamicJsonDocument &jTask, int *POS);
-    void select_dst(int *POS);
-    void proceed_dst(DynamicJsonDocument &jDst, int *POS);
-    int *get_dst();
-    int arrive_dst(int *POS);
+public:
+  Destinations();
+  void dst_init();
+  void load_dst(DynamicJsonDocument &jTask, int *POS);
+  void select_dst(int *POS);
+  void proceed_dst(DynamicJsonDocument &jDst, int *POS);
+  int *get_dst();
+  int arrive_dst(int *POS);
 };
 
 Destinations::Destinations()
 {
 }
 
-void Destinations::dst_init() {
+void Destinations::dst_init()
+{
   _dst = (int *)malloc(sizeof(int) * 2);
   _init_pos = (int *)malloc(sizeof(int) * 2);
-  for (int i = 0; i < 2; i ++) _dst[i] = -1;
+  for (int i = 0; i < 2; i++)
+    _dst[i] = -1;
 }
 
 void Destinations::_del_dst_lst(int idx)
@@ -80,7 +82,8 @@ void Destinations::_del_dst_lst(int idx)
 void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
 {
   Serial.println(POS[0]);
-  for (int i = 0; i < 2; i ++) _init_pos[i] = POS[i];
+  for (int i = 0; i < 2; i++)
+    _init_pos[i] = POS[i];
   _lst_size = jTask["Num"];
   Serial.print("Task size: ");
   Serial.println(_lst_size);
@@ -116,7 +119,8 @@ void Destinations::select_dst(int *POS)
       idx = i;
     }
   }
-  for (int i = 0; i < 2; i ++) _dst[i] = _dst_lst[idx][i];
+  for (int i = 0; i < 2; i++)
+    _dst[i] = _dst_lst[idx][i];
   _del_dst_lst(idx);
 }
 
@@ -139,11 +143,13 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
       int idx = -1;
       for (int i = 0; i < _lst_size; i++)
       {
-        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1]) idx = i;
+        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1])
+          idx = i;
         Serial.println("matched");
       }
       //      filter out destination of robots going back to their origin
-      if (idx >= 0) _del_dst_lst(idx);
+      if (idx >= 0)
+        _del_dst_lst(idx);
     }
   }
   else
@@ -151,43 +157,48 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
     // run out of available Destinations
     // go back to original point
     //    only doing so when the last destination conflicts the destination taken by others
-    if (dst[0] == _dst[0] && dst[1] == _dst[1]) {
-      for (int i = 0; i < 2; i ++) _dst[i] = _init_pos[i];
+    if (dst[0] == _dst[0] && dst[1] == _dst[1])
+    {
+      for (int i = 0; i < 2; i++)
+        _dst[i] = _init_pos[i];
     }
   }
 }
 
-int* Destinations::get_dst() {
-  int* new_ptr = (int*) malloc(sizeof(int) * 2);
-  for (int i = 0; i < 2; i ++) new_ptr[i] = _dst[i];
+int *Destinations::get_dst()
+{
+  int *new_ptr = (int *)malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i++)
+    new_ptr[i] = _dst[i];
   return new_ptr;
 }
 
 int Destinations::arrive_dst(int *POS)
 {
-  if (POS[0] == _dst[0] && POS[1] == _dst[1]) return 1;
+  if (POS[0] == _dst[0] && POS[1] == _dst[1])
+    return 1;
   return 0;
 }
 
 class Motor
 {
-  private:
-    Encoder *_encoder;
-    int _PWM;
-    int _DIR;
-    int _IDX;
-    uint8_t _PIN;
-    void _reset_encoder();
+private:
+  Encoder *_encoder;
+  int _PWM;
+  int _DIR;
+  int _IDX;
+  uint8_t _PIN;
+  void _reset_encoder();
 
-  public:
-    Motor(Encoder *encoder, int PWM, int DIR, int IDX);
-    void motor_move(int spd, int dir);
-    void motor_stop();
-    const int get_idx();
-    const int get_pwm();
-    const int get_dir();
-    const int get_tick();
-    const uint8_t get_pin();
+public:
+  Motor(Encoder *encoder, int PWM, int DIR, int IDX);
+  void motor_move(int spd, int dir);
+  void motor_stop();
+  const int get_idx();
+  const int get_pwm();
+  const int get_dir();
+  const int get_tick();
+  const uint8_t get_pin();
 };
 
 Motor::Motor(Encoder *encoder, int PWM, int DIR, int IDX)
@@ -251,20 +262,21 @@ const uint8_t Motor::get_pin()
 
 class Locomotion
 {
-  private:
-    Motor _motor1;
-    Motor _motor2;
-    Motor *_motors;
-    int _PULSE;
-  public:
-    Locomotion(Encoder *encoder1, Encoder *encoder2);
-    int turn(int deg, char dir);
-    int forward(int dist);
-    void motor_init();
+private:
+  Motor _motor1;
+  Motor _motor2;
+  Motor *_motors;
+  int _PULSE;
+
+public:
+  Locomotion(Encoder *encoder1, Encoder *encoder2);
+  int turn(int deg, char dir);
+  int forward(int dist);
+  void motor_init();
 };
 
 Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1, 27, 14, 1),
-  _motor2(encoder2, 12, 13, 2)
+                                                               _motor2(encoder2, 12, 13, 2)
 {
   _PULSE = 7;
 }
@@ -307,15 +319,15 @@ int Locomotion::turn(int deg, char dir)
   int num2;
   switch (dir)
   {
-    case 'L':
-      num1 = 0;
-      num2 = 1;
-      break;
+  case 'L':
+    num1 = 0;
+    num2 = 1;
+    break;
 
-    case 'R':
-      num1 = 1;
-      num2 = 0;
-      break;
+  case 'R':
+    num1 = 1;
+    num2 = 0;
+    break;
   }
   if (_motor1.get_tick() <= _PULSE * deg)
   {
@@ -362,16 +374,16 @@ void Locomotion::motor_init()
 
 class Communication
 {
-  private:
-    AsyncUDP _udp;
-    char *_ssid;
-    char *_password;
+private:
+  AsyncUDP _udp;
+  char *_ssid;
+  char *_password;
 
-  public:
-    Communication(char *ssid, char *password);
-    void wifi_init();
-    void udp_init(Destinations dst, const char* ID, int *POS, int *ORI, DynamicJsonDocument &jInfo);
-    char *json_creator(int *POS);
+public:
+  Communication(char *ssid, char *password);
+  void wifi_init();
+  void udp_init(Destinations dst, const char *ID, int *POS, int *ORI, DynamicJsonDocument &jInfo);
+  char *json_creator(int *POS);
 };
 
 Communication::Communication(char *ssid, char *password)
@@ -396,53 +408,54 @@ void Communication::wifi_init()
   }
 }
 
-void Communication::udp_init(Destinations dst, const char* ID, int *POS, int *ORI, DynamicJsonDocument &jInfo)
+void Communication::udp_init(Destinations dst, const char *ID, int *POS, int *ORI, DynamicJsonDocument &jInfo)
 {
   const int Purpose = jInfo["Purpose"];
   switch (Purpose)
   {
-    case 1:
-      {
-        //   only for updating current position
-        Serial.println("Position received");
-        // not move if it can't get its position in json document
-        if (!jInfo[ID][0][0] && !jInfo[ID][0][1]) break;
-        POS[0] = jInfo[ID][0][0];
-        POS[1] = jInfo[ID][0][1];
-        *ORI = jInfo[ID][1];
-        Serial.println(POS[0]);
-        Serial.println(POS[1]);
-        Serial.println();
-        // move only if it has received tasks
-        //        int *ptr = dst.get_dst();
-        //         int arrive = dst.arrive_dst(POS);
-        // Serial.println(ptr[0]);
-        // Serial.println(ptr[1]);
-        // Serial.println();
-        // if (ptr[0] != -1 && !arrive)
-        // {
-        //   // actionDecoder(ORI, POS, ptr);
-        //   Serial.println("Not arrived");
-        // }
-        // else if (arrive)
-        // {
-        //   //          self has arrived
-        //   //          write udp to the rest of the group
-        //   return 1;
-        // }
-        // free(ptr);
-      }
+  case 1:
+  {
+    //   only for updating current position
+    Serial.println("Position received");
+    // not move if it can't get its position in json document
+    if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
       break;
-    case 2:
-      Serial.println("Tasks received");
-      dst.load_dst(jInfo, POS);
-      break;
-    case 3:
-      //        other robots have arrived at their destinations
-      //        need to check whether the destinations are the same as its own destination
-      //        move only when it self is not at the destination
-      if (!dst.arrive_dst(POS))
-        dst.proceed_dst(jInfo, POS);
+    POS[0] = jInfo[ID][0][0];
+    POS[1] = jInfo[ID][0][1];
+    *ORI = jInfo[ID][1];
+    Serial.println(POS[0]);
+    Serial.println(POS[1]);
+    Serial.println();
+    // move only if it has received tasks
+    //        int *ptr = dst.get_dst();
+    //         int arrive = dst.arrive_dst(POS);
+    // Serial.println(ptr[0]);
+    // Serial.println(ptr[1]);
+    // Serial.println();
+    // if (ptr[0] != -1 && !arrive)
+    // {
+    //   // actionDecoder(ORI, POS, ptr);
+    //   Serial.println("Not arrived");
+    // }
+    // else if (arrive)
+    // {
+    //   //          self has arrived
+    //   //          write udp to the rest of the group
+    //   return 1;
+    // }
+    // free(ptr);
+  }
+  break;
+  case 2:
+    Serial.println("Tasks received");
+    dst.load_dst(jInfo, POS);
+    break;
+  case 3:
+    //        other robots have arrived at their destinations
+    //        need to check whether the destinations are the same as its own destination
+    //        move only when it self is not at the destination
+    if (!dst.arrive_dst(POS))
+      dst.proceed_dst(jInfo, POS);
   }
   jInfo.clear();
 }
@@ -464,36 +477,35 @@ char *Communication::json_creator(int *POS)
 
 class Robot
 {
-  private:
+private:
+  int *_POS;
+  int _ORI;
+  int _TURN;
+  int _STATE;
+  int _battery;
+  const char *_ID;
+  Locomotion _loc;
+  Destinations _dst;
+  Communication _com;
 
-    int *_POS;
-    int _ORI;
-    int _TURN;
-    int _STATE;
-    int _battery;
-    const char *_ID;
-    Locomotion _loc;
-    Destinations _dst;
-    Communication _com;
-
-  public:
-    Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password, const char *ID);
-    void robot_init();
-    void execute_main();
-    void update_battery(int level);
-    void decode_action(int *pos, int *dst);
-    void udp_init(DynamicJsonDocument &jInfo);
-    const char *get_id();
-    char *json_creator();
-    int *get_pos();
-    int robot_action();
-    int get_battery();
-    int get_state();
-    int get_ori();
+public:
+  Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password, const char *ID);
+  void robot_init();
+  void execute_main();
+  void update_battery(int level);
+  void decode_action(int *pos, int *dst);
+  void udp_init(DynamicJsonDocument &jInfo);
+  const char *get_id();
+  char *json_creator();
+  int *get_pos();
+  int robot_action();
+  int get_battery();
+  int get_state();
+  int get_ori();
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password, const char *ID) : _loc(encoder1, encoder2),
-  _com(ssid, password)
+                                                                                                 _com(ssid, password)
 {
   _ID = ID;
   _STATE = 0;
@@ -505,8 +517,9 @@ void Robot::robot_init()
   _com.wifi_init();
   _loc.motor_init();
   Serial.begin(115200);
-  _POS = (int*)malloc(sizeof(int) * 2);
-  for (int i = 0; i < 2; i ++) _POS[i] = -1;
+  _POS = (int *)malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i++)
+    _POS[i] = -1;
   Serial.println(_POS[0]);
 }
 
@@ -515,17 +528,18 @@ void Robot::execute_main()
   int turn;
   switch (_STATE)
   {
-    case 1:
-      turn = _loc.forward(1000);
-      break;
-    case 2:
-      turn = _loc.turn(_TURN, 'L');
-      break;
-    case 3:
-      turn = _loc.turn(_TURN, 'R');
-      break;
+  case 1:
+    turn = _loc.forward(1000);
+    break;
+  case 2:
+    turn = _loc.turn(_TURN, 'L');
+    break;
+  case 3:
+    turn = _loc.turn(_TURN, 'R');
+    break;
   }
-  if (turn) _STATE = 0;
+  if (turn)
+    _STATE = 0;
 }
 
 void Robot::update_battery(int level)
@@ -721,9 +735,10 @@ void setup()
       DynamicJsonDocument jInfo(1024);
       deserializeJson(jInfo, packet.data());
       robot.udp_init(jInfo);
-      if (robot.robot_action()) {
+      if (robot.robot_action())
+      {
         char *jsonStr = robot.json_creator();
-        _udp.writeTo((const uint8_t*) jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+        _udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
         free(jsonStr);
       }
       //      com.udp_init(dst, ID, POS, &ORI, jInfo);
