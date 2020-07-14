@@ -322,8 +322,12 @@ int Locomotion::get_pulse()
   return _PULSE;
 }
 
-class Receiver
-{
+/*
+  Code for collision avoidance
+  Not important for now
+
+  class Receiver
+  {
   private:
     int _idx;
     int _pin_num;
@@ -336,41 +340,41 @@ class Receiver
     int get_reading();
     void receiver_init();
     void receiver_read();
-};
+  };
 
-Receiver::Receiver(int pin_num, int idx)
-{
+  Receiver::Receiver(int pin_num, int idx)
+  {
   _idx = idx;
   _pin_num = pin_num;
-}
+  }
 
-int Receiver::get_idx()
-{
+  int Receiver::get_idx()
+  {
   return _idx;
-}
+  }
 
-int Receiver::get_pin()
-{
+  int Receiver::get_pin()
+  {
   return _idx;
-}
+  }
 
-int Receiver::get_reading()
-{
+  int Receiver::get_reading()
+  {
   return _reading;
-}
+  }
 
-void Receiver::receiver_init()
-{
+  void Receiver::receiver_init()
+  {
   analogSetPinAttenuation(get_pin(), ADC_11db);
-}
+  }
 
-void Receiver::receiver_read()
-{
+  void Receiver::receiver_read()
+  {
   _reading = analogRead(get_pin());
-}
+  }
 
-class Emitter
-{
+  class Emitter
+  {
   private:
     int _em_tx;
     int _on_interval;
@@ -384,34 +388,34 @@ class Emitter
     void emitter_off();
     void emitter_init();
     void emitter_control();
-};
+  };
 
-Emitter::Emitter(int em_tx)
-{
+  Emitter::Emitter(int em_tx)
+  {
   _em_tx = em_tx;
   _on_interval = 1;
   _off_interval = 20;
   _emitter_state = 0;
-}
+  }
 
-void Emitter::emitter_init()
-{
+  void Emitter::emitter_init()
+  {
   pinMode(_em_tx, OUTPUT);
   _emitter_timer = millis();
-}
+  }
 
-void Emitter::emitter_on()
-{
+  void Emitter::emitter_on()
+  {
   digitalWrite(_em_tx, HIGH);
-}
+  }
 
-void Emitter::emitter_off()
-{
+  void Emitter::emitter_off()
+  {
   digitalWrite(_em_tx, LOW);
-}
+  }
 
-void Emitter::emitter_control()
-{
+  void Emitter::emitter_control()
+  {
   if (_emitter_state) // emitter is turned on
   {
     float current = millis();
@@ -432,10 +436,10 @@ void Emitter::emitter_control()
       _emitter_state = 1;
     }
   }
-}
+  }
 
-class Collision
-{
+  class Collision
+  {
   private:
     Emitter _emitter;
     Receiver _receivers[5];
@@ -455,53 +459,53 @@ class Collision
     void collision_avoidance_init();
     void update_collision_timer(int num);
     void update_collision_state(int num);
-};
+  };
 
-Collision::Collision(int pin_em) : _emitter(23),
+  Collision::Collision(int pin_em) : _emitter(23),
   _receivers{{32, 0}, {33, 1}, {34, 2}, {36, 3}, {39, 4}}
-{
+  {
   reset_collision_timer();
   reset_collision_state();
   for (int i = 0; i < 5; i++)
     _receiver_readings[i] = 0;
-}
+  }
 
-int Collision::decode_readings(int idx)
-{
+  int Collision::decode_readings(int idx)
+  {
   if (_receiver_readings[idx] >= 2000)
     return 1;
   return 0;
-}
+  }
 
-void Collision::update_readings()
-{
+  void Collision::update_readings()
+  {
   for (int i = 0; i < 5; i++)
   {
     _receivers[i].receiver_read();
     _receiver_readings[i] = _receivers[i].get_reading();
   }
-}
+  }
 
-void Collision::collision_avoidance_init()
-{
+  void Collision::collision_avoidance_init()
+  {
   analogSetWidth(12);
   for (int i = 0; i < 5; i++)
     _receivers[i].receiver_init();
   _emitter.emitter_init();
-}
+  }
 
-int Collision::get_collision_state()
-{
+  int Collision::get_collision_state()
+  {
   return _collision_state;
-}
+  }
 
-int Collision::get_collision_timer()
-{
+  int Collision::get_collision_timer()
+  {
   return _collision_timer;
-}
+  }
 
-int Collision::collision_avoidance_main()
-{
+  int Collision::collision_avoidance_main()
+  {
   _emitter.emitter_control();
   update_readings();
   if (decode_readings(2))
@@ -530,27 +534,29 @@ int Collision::collision_avoidance_main()
   // no robot blocking the way
   // clear to go
   return _collision_state;
-}
+  }
 
-void Collision::reset_collision_state()
-{
+  void Collision::reset_collision_state()
+  {
   _collision_state = 0;
-}
+  }
 
-void Collision::reset_collision_timer()
-{
+  void Collision::reset_collision_timer()
+  {
   _collision_timer = 0;
-}
+  }
 
-void Collision::update_collision_state(int num)
-{
+  void Collision::update_collision_state(int num)
+  {
   _collision_state = num;
-}
+  }
 
-void Collision::update_collision_timer(int num)
-{
+  void Collision::update_collision_timer(int num)
+  {
   _collision_timer = num;
-}
+  }
+
+*/
 
 class Destinations
 {
@@ -712,13 +718,14 @@ class Robot
     int _prev_tick[2];
     int **_route;
     float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
-    Collision _col;
+    //  Collision _col;
     Locomotion _loc;
     //  Destinations _dst;
 
   public:
     Robot(Encoder *encoder1, Encoder *encoder2);
     float *get_pos();
+    int get_size();
     int get_state();
     int **get_route();
     void robot_init();
@@ -732,8 +739,8 @@ class Robot
     void update_abs(int *pos);
 };
 
-Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2),
-  _col(23)
+Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
+  //_col(23)
 {
   _ptr = 1;
   _STATE = 0;
@@ -750,6 +757,11 @@ float *Robot::get_pos()
   return ptr;
 }
 
+int Robot::get_size()
+{
+  return _task_size;
+}
+
 int Robot::get_state()
 {
   return _STATE;
@@ -758,12 +770,12 @@ int Robot::get_state()
 void Robot::robot_init()
 {
   _loc.motor_init();
-  _col.collision_avoidance_init();
+  //  _col.collision_avoidance_init();
 }
 
 /* Not important for now
-void Robot::calc_error()
-{
+  void Robot::calc_error()
+  {
   float *pos = get_pos();
   int error;
   int *prev_task = _route[_ptr - 1];
@@ -786,42 +798,54 @@ void Robot::calc_error()
   if (abs(error) > 3) // a threshold value needs to be set
     // change the state to error recovery
     _off_course = 1;
-}
+  }
 */
 
 void Robot::auto_route()
 {
   // A* routing algorithm goes here
   float dst[2];
-  dst[0] = 18000;
-  dst[1] = 18000;
+  dst[0] = 0;
+  dst[1] = 15000;
   int x_distance = (dst[0] - _pos[0]) / 1500;
   int y_distance = (dst[1] - _pos[1]) / 1500;
-  // randomly decide where to break the route
-  int inter = 3;
-  //  int random_num = 1;
-  int random_num = rand() % abs(x_distance);
-  _route = (int **)malloc(sizeof(int *) * 4);
-  for (int i = 0; i < 4; i++)
-  {
-    _route[i] = (int *)malloc(sizeof(int) * 2);
-  }
 
-  //  hard-coding the current position and the destination
-  for (int i = 0; i < 2; i++)
+  // randomly decide where to break the route
+  if (x_distance && y_distance)
   {
-    _route[0][i] = _pos[i];
+    Serial.println("setting break points");
+    // when both x_distance and y_distance is greater than 0
+    int random_num = rand() % abs(x_distance);
+    _route = (int **)malloc(sizeof(int *) * 4);
+    for (int i = 0; i < 4; i++)
+      _route[i] = (int *)malloc(sizeof(int) * 2);
+    //
+    for (int i = 0; i < 2; i++)
+      _route[0][i] = _pos[i];
+    _task_size = 4;
+    if (x_distance > 0)
+      _route[1][0] = _pos[0] + random_num * 1500;
+    else
+      _route[1][0] = _pos[0] - random_num * 1500;
+    _route[1][1] = _pos[1];
+    _route[2][0] = _route[1][0];
+    _route[2][1] = _route[1][1] + y_distance * 1500;
+    _route[3][0] = dst[0];
+    _route[3][1] = dst[1];
   }
-  _task_size = 4;
-  if (x_distance > 0)
-    _route[1][0] = _pos[0] + random_num * 1500;
   else
-    _route[1][0] = _pos[0] - random_num * 1500;
-  _route[1][1] = _pos[1];
-  _route[2][0] = _route[1][0];
-  _route[2][1] = _route[1][1] + y_distance * 1500;
-  _route[3][0] = dst[0];
-  _route[3][1] = dst[1];
+  {
+    Serial.println("routing");
+    _task_size = 2;
+    _route = (int **)malloc(sizeof(int *) * _task_size);
+    for (int i = 0; i < 2; i++)
+      _route[i] = (int *)malloc(sizeof(int) * 2);
+    for (int i = 0; i < 2; i++)
+    {
+      _route[0][i] = _pos[i];
+      _route[1][i] = dst[i];
+    }
+  }
 }
 
 // this function would be called when the encoder ticks or when the server updates the robots global position
@@ -931,8 +955,8 @@ int **Robot::get_route()
 }
 /* Below is code for replanning path in collision avoidance
    Not important for now
-void Robot::reroute(char dir)
-{
+  void Robot::reroute(char dir)
+  {
   int **new_route = (int **)malloc(sizeof(int *) * (_task_size + 3));
   int new_ptr0[2], new_ptr1[2], new_ptr2[2];
   for (int i = 0; i < 2; i++)
@@ -1021,20 +1045,20 @@ void Robot::reroute(char dir)
   }
   free(_route);
   _route = new_route;
-}
+  }
 
 */
 
-/* 
-Similar to the code in void loop()
-If a robot is at state 0
-It would run check_task() to see there is more tasks in the route
-If there is more tasks (state != 4)
+/*
+  Similar to the code in void loop()
+  If a robot is at state 0
+  It would run check_task() to see there is more tasks in the route
+  If there is more tasks (state != 4)
   action_decoder() would decode its next action to get to the next destination
-Else action_decoder() would not run
+  Else action_decoder() would not run
 
-The proceed variable keeps the 1/0 value from forward, which indicates whether 
-the robot has arrived at the next destination
+  The proceed variable keeps the 1/0 value from forward, which indicates whether
+  the robot has arrived at the next destination
 */
 void Robot::main_executor()
 {
@@ -1060,17 +1084,22 @@ void Robot::main_executor()
       break;
     case 4:
       //      Serial.println("arrived");
-      Serial.print(_pos[0]); Serial.print("  "); Serial.print(_pos[1]); Serial.print("  "); Serial.println(_pos[2]);
+      Serial.print(_pos[0]);
+      Serial.print("  ");
+      Serial.print(_pos[1]);
+      Serial.print("  ");
+      Serial.println(_pos[2]);
       break;
   }
   if (proceed)
     _STATE = 0;
+  // update_est();
 }
 
 /*
-same as the previous action decoder
-take in the upcoming destination in _route
-output the necessary action to get to the destination
+  same as the previous action decoder
+  take in the upcoming destination in _route
+  output the necessary action to get to the destination
 */
 
 void Robot::action_decoder()
@@ -1194,17 +1223,21 @@ void Robot::action_decoder()
 }
 
 /*
-This is for checking whether the robot has arrived at the destination
-If the robot thinks it can proceed
-It would check if the robot has really arrived or was just turning
-If it has really arrived
-The pointer would point at the next destination
-*/  
+  This is for checking whether the robot has arrived at the destination
+  If the robot thinks it can proceed
+  It would check if the robot has really arrived or was just turning
+  If it has really arrived
+  The pointer would point at the next destination
+*/
 
 void Robot::check_task()
 {
   float *pos = get_pos();
-  Serial.print(_pos[0]); Serial.print("  "); Serial.print(_pos[1]); Serial.print("  "); Serial.println(_pos[2]);  
+  Serial.print(_pos[0]);
+  Serial.print("  ");
+  Serial.print(_pos[1]);
+  Serial.print("  ");
+  Serial.println(_pos[2]);
   if (abs(pos[0] - _route[_ptr][0]) <= 5 && abs(pos[1] == _route[_ptr][1]) <= 5)
   {
     Serial.println("arrived at a dst");
@@ -1254,20 +1287,24 @@ void setup()
       delay(1000);
     }
   }
-  int pos[2] = {15000, 15000};
+  int pos[3] = {15000, 15000, 0};
   robot.update_abs(pos);
   Serial.println("position initialized");
   float *pos_now = robot.get_pos();
-  Serial.print(pos_now[0]); Serial.print("  "); Serial.println(pos_now[1]);
+  Serial.print(pos_now[0]);
+  Serial.print("  ");
+  Serial.println(pos_now[1]);
   robot.auto_route();
   delay(1000);
   //  listening to both task and current position on this channel
   Serial.println("initialized");
   int **route = robot.get_route();
-  Serial.print(route[0][0]); Serial.print("  "); Serial.println(route[0][1]);
-  Serial.print(route[1][0]); Serial.print("  "); Serial.println(route[1][1]);
-  Serial.print(route[2][0]); Serial.print("  "); Serial.println(route[2][1]);
-  Serial.print(route[3][0]); Serial.print("  "); Serial.println(route[3][1]);
+  for (int i = 0; i < robot.get_size(); i ++)
+  {
+    Serial.print(route[i][0]);
+    Serial.print("  ");
+    Serial.println(route[i][1]);
+  }
 }
 
 void loop()
