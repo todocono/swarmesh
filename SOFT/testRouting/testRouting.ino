@@ -791,10 +791,10 @@ void Robot::auto_route()
 {
   // A* routing algorithm goes here
   float dst[2];
-  dst[0] = 13000;
-  dst[1] = 1200;
-  int x_distance = (dst[0] - _pos[0]) / 15;
-  int y_distance = (dst[1] - _pos[1]) / 15;
+  dst[0] = 18000;
+  dst[1] = 18000;
+  int x_distance = (dst[0] - _pos[0]) / 1500;
+  int y_distance = (dst[1] - _pos[1]) / 1500;
   // randomly decide where to break the route
   int inter = 3;
   //  int random_num = 1;
@@ -812,12 +812,12 @@ void Robot::auto_route()
   }
   _task_size = 4;
   if (x_distance > 0)
-    _route[1][0] = _pos[0] + random_num * 15;
+    _route[1][0] = _pos[0] + random_num * 1500;
   else
-    _route[1][0] = _pos[0] - random_num * 15;
+    _route[1][0] = _pos[0] - random_num * 1500;
   _route[1][1] = _pos[1];
   _route[2][0] = _route[1][0];
-  _route[2][1] = _route[1][1] + y_distance * 15;
+  _route[2][1] = _route[1][1] + y_distance * 1500;
   _route[3][0] = dst[0];
   _route[3][1] = dst[1];
 }
@@ -1123,11 +1123,11 @@ void Robot::action_decoder()
     {
       if (y >= 1)
       {
-        _STATE = 2;
+        _STATE = 3;
       }
       else if (y <= -1)
       {
-        _STATE = 3;
+        _STATE = 2;
       }
     }
   }
@@ -1147,11 +1147,11 @@ void Robot::action_decoder()
     {
       if (y >= 1)
       {
-        _STATE = 3;
+        _STATE = 2;
       }
       else if (y <= -1)
       {
-        _STATE = 2;
+        _STATE = 3;
       }
     }
   }
@@ -1209,6 +1209,7 @@ void setup()
 {
   //  SET UP THE ID OF THE ROBOT HERE
   //  loc.motor_init();
+  Serial.println("robot started");
   robot.robot_init();
   encoder1.numberTicks = 0;
   encoder2.numberTicks = 0;
@@ -1223,7 +1224,7 @@ void setup()
       delay(1000);
     }
   }
-  int pos[2] = {7000, 1800};
+  int pos[2] = {15000, 15000};
   robot.update_abs(pos);
   Serial.println("position initialized");
   float *pos_now = robot.get_pos();
