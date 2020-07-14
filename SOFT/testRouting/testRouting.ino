@@ -761,6 +761,7 @@ void Robot::robot_init()
   _col.collision_avoidance_init();
 }
 
+/* Not important for now
 void Robot::calc_error()
 {
   float *pos = get_pos();
@@ -786,6 +787,7 @@ void Robot::calc_error()
     // change the state to error recovery
     _off_course = 1;
 }
+*/
 
 void Robot::auto_route()
 {
@@ -831,6 +833,7 @@ void Robot::update_abs(int *pos)
 
 /*
   Below was code for position estimation based on encoders
+  Not important for now
 */
 
 //void Robot::update_est()
@@ -926,7 +929,8 @@ int **Robot::get_route()
 {
   return _route;
 }
-
+/* Below is code for replanning path in collision avoidance
+   Not important for now
 void Robot::reroute(char dir)
 {
   int **new_route = (int **)malloc(sizeof(int *) * (_task_size + 3));
@@ -1019,6 +1023,19 @@ void Robot::reroute(char dir)
   _route = new_route;
 }
 
+*/
+
+/* 
+Similar to the code in void loop()
+If a robot is at state 0
+It would run check_task() to see there is more tasks in the route
+If there is more tasks (state != 4)
+  action_decoder() would decode its next action to get to the next destination
+Else action_decoder() would not run
+
+The proceed variable keeps the 1/0 value from forward, which indicates whether 
+the robot has arrived at the next destination
+*/
 void Robot::main_executor()
 {
   int proceed = 0;
@@ -1048,8 +1065,13 @@ void Robot::main_executor()
   }
   if (proceed)
     _STATE = 0;
-  // update_est();
 }
+
+/*
+same as the previous action decoder
+take in the upcoming destination in _route
+output the necessary action to get to the destination
+*/
 
 void Robot::action_decoder()
 {
@@ -1170,6 +1192,14 @@ void Robot::action_decoder()
     }
   }
 }
+
+/*
+This is for checking whether the robot has arrived at the destination
+If the robot thinks it can proceed
+It would check if the robot has really arrived or was just turning
+If it has really arrived
+The pointer would point at the next destination
+*/  
 
 void Robot::check_task()
 {
