@@ -813,7 +813,6 @@ void Robot::auto_route()
   // randomly decide where to break the route
   if (x_distance && y_distance)
   {
-    Serial.println("setting break points");
     // when both x_distance and y_distance is greater than 0
     int random_num = rand() % abs(x_distance);
     _route = (int **)malloc(sizeof(int *) * 4);

@@ -5,7 +5,6 @@
 #include <ArduinoJson.h>
 #include "WiFi.h"
 #include "AsyncUDP.h"
-#include "Wire.h" // This library allows you to communicate with I2C devices.
 
 struct Encoder
 {
@@ -126,12 +125,12 @@ public:
     Locomotion(Encoder *encoder1, Encoder *encoder2);
     float pos[3];
     int get_pulse();
-    int forward(int dist);
+    int forward(int dist, int error);
     int turn(int deg, char dir);
+    int pid_compute(int error);
     int *get_tick(int *tick);
     void motor_init();
     void encoder_reset();
-    void pid_compute();
     void pid_tuning(double Kp, double Ki, double Kd);
 };
 
@@ -145,9 +144,11 @@ Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1,
         _prev_tick[i] = 0;
 }
 
-int Locomotion::forward(int dist)
+int Locomotion::forward(int dist, int error)
 {
-    double spd = 200;
+    int spd = 200;
+    if (error > 300)
+        _off_course = 1;
     int tick1 = _motor1.get_tick();
     int tick2 = _motor2.get_tick();
     if (tick1 < dist)
@@ -155,57 +156,44 @@ int Locomotion::forward(int dist)
         if (tick1 <= 250 && tick2 <= 250)
         {
             spd = map(tick1, 0, 250, 120, 200);
+            _motor1.motor_move(spd, 0);
+            _motor2.motor_move(spd, 0);
         }
         else if ((dist - tick1) <= 250)
         {
             spd = (dist - tick1) * 0.8;
             spd = map(spd, 0, 250, 120, 200);
+            _motor1.motor_move(spd, 0);
+            _motor2.motor_move(spd, 0);
         }
-        if (abs(tick1 - tick2) > 5)
+        if (!_off_course)
         {
-            if (tick1 < tick2)
+            if (abs(tick1 - tick2) > 5)
             {
-                int error = (tick2 - tick1) * 0.5;
-                _motor1.motor_move(spd + error, 0);
-                _motor2.motor_move(spd - error, 0);
-            }
-            else if (tick1 > tick2)
-            {
-                int error = (tick1 - tick2) * 0.5;
-                _motor1.motor_move(spd - error, 0);
-                _motor2.motor_move(spd + error, 0);
+                if (tick1 < tick2)
+                {
+                    int error = (tick2 - tick1) * 0.5;
+                    _motor1.motor_move(spd + error, 0);
+                    _motor2.motor_move(spd - error, 0);
+                }
+                else if (tick1 > tick2)
+                {
+                    int error = (tick1 - tick2) * 0.5;
+                    _motor1.motor_move(spd - error, 0);
+                    _motor2.motor_move(spd + error, 0);
+                }
             }
         }
-        _motor1.motor_move(spd, 0);
-        _motor2.motor_move(spd, 0);
+        else
+        {
+            int gap = pid_compute(error);
+            _motor1.motor_move(spd - gap, 0);
+            _motor2.motor_move(spd + gap, 0);
+        }
+
         int tick1 = _motor1.get_tick();
         int tick2 = _motor2.get_tick();
         int ori = pos[2];
-        // if (abs(tick1 - tick2) > 10 && !_off_course)
-        // {
-        //   _off_course = 1;
-        //   int rotation = (tick2 - tick1) / _width;
-        //   int radius = _width * (tick1 + tick2) / 2 * (tick2 - tick1);
-        //   if (tick1 > tick2)
-        //   {
-        //     // right rotation
-        //     pos[0] = radius * sin((pos[2] + rotation) * PI / 180) + pos[0] - radius * sin(pos[2]);
-        //     pos[1] = -radius * cos((pos[2] + rotation) * PI / 180) + pos[1] + radius * cos(pos[2]);
-        //     pos[2] += rotation;
-        //     if (pos[2] > 180)
-        //       pos[2] -= 360;
-        //   }
-        //   else
-        //   {
-        //     // left rotation
-        //     pos[0] = radius * sin((pos[2] - rotation) * PI / 180) + pos[0] - radius * sin(pos[2]);
-        //     pos[1] = -radius * cos((pos[2] - rotation) * PI / 180) + pos[1] + radius * cos(pos[2]);
-        //     pos[2] -= rotation;
-        //     if (pos[2] < -180)
-        //       pos[2] += 360;
-        //   }
-        // }
-
         if (abs(ori) <= 5)
             pos[1] -= tick1 - _prev_tick[0];
         else if (abs(ori) >= 175)
@@ -280,7 +268,6 @@ int Locomotion::turn(int deg, char dir)
             _prev_tick[i] = 0;
         }
         return 1;
-        // STATE = 0;
     }
 }
 
@@ -289,6 +276,13 @@ int *Locomotion::get_tick(int *tick)
     tick[0] = _motor1.get_tick();
     tick[1] = _motor2.get_tick();
     return tick;
+}
+
+int pid_compute(int error)
+{
+    int kp = 0.8;
+    int gap = kp * error;
+    return gap;
 }
 
 void Locomotion::motor_init()
@@ -322,387 +316,6 @@ int Locomotion::get_pulse()
     return _PULSE;
 }
 
-/*
-  Code for collision avoidance
-  Not important for now
-
-  class Receiver
-  {
-  private:
-    int _idx;
-    int _pin_num;
-    int _reading;
-
-  public:
-    Receiver(int pin_num, int idx);
-    int get_idx();
-    int get_pin();
-    int get_reading();
-    void receiver_init();
-    void receiver_read();
-  };
-
-  Receiver::Receiver(int pin_num, int idx)
-  {
-  _idx = idx;
-  _pin_num = pin_num;
-  }
-
-  int Receiver::get_idx()
-  {
-  return _idx;
-  }
-
-  int Receiver::get_pin()
-  {
-  return _idx;
-  }
-
-  int Receiver::get_reading()
-  {
-  return _reading;
-  }
-
-  void Receiver::receiver_init()
-  {
-  analogSetPinAttenuation(get_pin(), ADC_11db);
-  }
-
-  void Receiver::receiver_read()
-  {
-  _reading = analogRead(get_pin());
-  }
-
-  class Emitter
-  {
-  private:
-    int _em_tx;
-    int _on_interval;
-    int _off_interval;
-    int _emitter_state;
-    float _emitter_timer;
-
-  public:
-    Emitter(int em_tx);
-    void emitter_on();
-    void emitter_off();
-    void emitter_init();
-    void emitter_control();
-  };
-
-  Emitter::Emitter(int em_tx)
-  {
-  _em_tx = em_tx;
-  _on_interval = 1;
-  _off_interval = 20;
-  _emitter_state = 0;
-  }
-
-  void Emitter::emitter_init()
-  {
-  pinMode(_em_tx, OUTPUT);
-  _emitter_timer = millis();
-  }
-
-  void Emitter::emitter_on()
-  {
-  digitalWrite(_em_tx, HIGH);
-  }
-
-  void Emitter::emitter_off()
-  {
-  digitalWrite(_em_tx, LOW);
-  }
-
-  void Emitter::emitter_control()
-  {
-  if (_emitter_state) // emitter is turned on
-  {
-    float current = millis();
-    if (current - _emitter_timer > _on_interval)
-    {
-      emitter_off();
-      _emitter_timer = millis();
-      _emitter_state = 0;
-    }
-  }
-  else
-  {
-    float current = millis();
-    if (current - _emitter_timer > _off_interval)
-    {
-      emitter_on();
-      _emitter_timer = millis();
-      _emitter_state = 1;
-    }
-  }
-  }
-
-  class Collision
-  {
-  private:
-    Emitter _emitter;
-    Receiver _receivers[5];
-    int _receiver_readings[5];
-    int _collision_state;
-    int _collision_timer;
-
-  public:
-    Collision(int pin_em);
-    int get_collision_timer();
-    int get_collision_state();
-    int decode_readings(int idx);
-    int collision_avoidance_main();
-    void update_readings();
-    void reset_collision_state();
-    void reset_collision_timer();
-    void collision_avoidance_init();
-    void update_collision_timer(int num);
-    void update_collision_state(int num);
-  };
-
-  Collision::Collision(int pin_em) : _emitter(23),
-  _receivers{{32, 0}, {33, 1}, {34, 2}, {36, 3}, {39, 4}}
-  {
-  reset_collision_timer();
-  reset_collision_state();
-  for (int i = 0; i < 5; i++)
-    _receiver_readings[i] = 0;
-  }
-
-  int Collision::decode_readings(int idx)
-  {
-  if (_receiver_readings[idx] >= 2000)
-    return 1;
-  return 0;
-  }
-
-  void Collision::update_readings()
-  {
-  for (int i = 0; i < 5; i++)
-  {
-    _receivers[i].receiver_read();
-    _receiver_readings[i] = _receivers[i].get_reading();
-  }
-  }
-
-  void Collision::collision_avoidance_init()
-  {
-  analogSetWidth(12);
-  for (int i = 0; i < 5; i++)
-    _receivers[i].receiver_init();
-  _emitter.emitter_init();
-  }
-
-  int Collision::get_collision_state()
-  {
-  return _collision_state;
-  }
-
-  int Collision::get_collision_timer()
-  {
-  return _collision_timer;
-  }
-
-  int Collision::collision_avoidance_main()
-  {
-  _emitter.emitter_control();
-  update_readings();
-  if (decode_readings(2))
-    // robot in front
-    // initiate random timer to communicate
-  {
-    update_collision_timer(1);
-    update_collision_state(1);
-  }
-  else if (decode_readings(3) || decode_readings(4))
-    // robot on the right
-    // this robot has priority to pass
-  {
-    update_collision_timer(10);
-    update_collision_state(2);
-  }
-  else if (decode_readings(0) || decode_readings(1))
-    // robot on the left
-  {
-    update_collision_state(3);
-  }
-  else
-  {
-    update_collision_state(0);
-  }
-  // no robot blocking the way
-  // clear to go
-  return _collision_state;
-  }
-
-  void Collision::reset_collision_state()
-  {
-  _collision_state = 0;
-  }
-
-  void Collision::reset_collision_timer()
-  {
-  _collision_timer = 0;
-  }
-
-  void Collision::update_collision_state(int num)
-  {
-  _collision_state = num;
-  }
-
-  void Collision::update_collision_timer(int num)
-  {
-  _collision_timer = num;
-  }
-
-*/
-
-class Destinations
-{
-private:
-    int **_dst_lst;
-    int _dst[2];
-    int _init_pos[2];
-    int _lst_size;
-    void _del_dst_lst(int idx);
-
-public:
-    Destinations();
-    void select_dst(int *POS);
-    void load_dst(DynamicJsonDocument &jTask, int *POS);
-    void proceed_dst(DynamicJsonDocument &jDst, int *POS);
-    int arrive_dst(int *POS);
-    int *get_dst();
-};
-
-Destinations::Destinations()
-{
-    for (int i = 0; i < 2; i++)
-        _dst[i] = -1;
-}
-
-void Destinations::_del_dst_lst(int idx)
-{
-    //  _dst[0] = _dst_lst[idx][0];
-    //  _dst[1] = _dst_lst[idx][1];
-    // swap the value at index with the last element
-    _dst_lst[idx][0] = _dst_lst[_lst_size - 1][0];
-    _dst_lst[idx][1] = _dst_lst[_lst_size - 1][1];
-    // modify _dst_lst and get rid of the smallest element
-    _lst_size--;
-    Serial.print("Reduced List Size: ");
-    Serial.println(_lst_size);
-    int **new_ptr = (int **)malloc(sizeof(int *) * (_lst_size));
-    for (int i = 0; i < _lst_size; i++)
-    {
-        new_ptr[i] = (int *)malloc(sizeof(int) * 2);
-        for (int j = 0; j < 2; j++)
-        {
-            new_ptr[i][j] = _dst_lst[i][j];
-        }
-        free(_dst_lst[i]);
-    }
-    free(_dst_lst);
-    _dst_lst = new_ptr;
-}
-
-void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
-{
-    for (int i = 0; i < 2; i++)
-        _init_pos[i] = POS[i];
-    _lst_size = jTask["Num"];
-    Serial.print("Task size: ");
-    Serial.println(_lst_size);
-    _dst_lst = (int **)malloc(sizeof(int *) * _lst_size);
-    // load json destination coordinates into the two-dimensional array
-    for (int i = 0; i < _lst_size; i++)
-    {
-        _dst_lst[i] = (int *)malloc(sizeof(int) * 2);
-        for (int j = 0; j < 2; j++)
-        {
-            _dst_lst[i][j] = jTask["Task"][i][j];
-        }
-    }
-    // automatically acquire the next destination by calling the function
-    select_dst(POS);
-}
-
-void Destinations::select_dst(int *POS)
-{
-    // select the destination with the least manhattan distance
-    int x = _dst_lst[0][0];
-    int y = _dst_lst[0][1];
-    int idx = 0;
-    int dist = (abs(x - POS[0]) + abs(y - POS[1]));
-    for (int i = 0; i < _lst_size; i++)
-    {
-        x = _dst_lst[i][0];
-        y = _dst_lst[i][1];
-        int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
-        if (new_dist < dist)
-        {
-            dist = new_dist;
-            idx = i;
-        }
-    }
-    for (int i = 0; i < 2; i++)
-        _dst[i] = _dst_lst[idx][i];
-    _del_dst_lst(idx);
-}
-
-void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
-{
-    int *dst = (int *)malloc(sizeof(int) * 2);
-    dst[0] = jDst["Pos"][0];
-    dst[1] = jDst["Pos"][1];
-    Serial.println(_lst_size);
-    if (_lst_size > 0)
-    {
-        // proceed to the next least distance point
-        if (dst[0] == _dst[0] && dst[1] == _dst[1])
-        {
-            select_dst(POS);
-        }
-        else
-        {
-            // get the id of the element
-            int idx = -1;
-            for (int i = 0; i < _lst_size; i++)
-            {
-                if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1])
-                    idx = i;
-            }
-            //      filter out destination of robots going back to their origin
-            if (idx >= 0)
-                _del_dst_lst(idx);
-        }
-    }
-    else
-    {
-        if (dst[0] == _dst[0] && dst[1] == _dst[1])
-        {
-            for (int i = 0; i < 2; i++)
-                _dst[i] = _init_pos[i];
-        }
-    }
-}
-
-int *Destinations::get_dst()
-{
-    int *new_ptr = (int *)malloc(sizeof(int) * 2);
-    for (int i = 0; i < 2; i++)
-        new_ptr[i] = _dst[i];
-    return new_ptr;
-}
-
-int Destinations::arrive_dst(int *POS)
-{
-    if (POS[0] == _dst[0] && POS[1] == _dst[1])
-        return 1;
-    return 0;
-}
-
 class Robot
 {
 private:
@@ -715,7 +328,7 @@ private:
     int _task_size;
     int _off_course;
     int _dst[2];
-    int _prev_tick[2];
+    char _direction;
     int **_route;
     float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
     Locomotion _loc;
@@ -772,29 +385,29 @@ void Robot::robot_init()
 void Robot::calc_error()
 {
     float *pos = get_pos();
-    int error;
-    int *prev_task = _route[_ptr - 1];
     int *crt_task = _route[_ptr];
-    if (!(crt_task[0] - prev_task[0]))
+    float error1 = pos[0] - crt_task[0];
+    float error2 = pos[1] - crt_task[1];
+    switch (_direction)
     {
-        if (crt_task[1] - prev_task[1] < 0) // from south to north
-            error = pos[0] - crt_task[0];
-        else
-            error = crt_task[0] - pos[0];
-    }
-    else if (!(crt_task[1] - prev_task[1]))
-    {
-        if (crt_task[0] - prev_task[0] < 0) // from west to east
-            error = pos[1] - crt_task[1];
-        else
-            error = crt_task[1] - pos[1];
+    case 'N':
+        _error = error1;
+        break;
+    case 'S':
+        _error = -error1;
+        break;
+    case 'W':
+        _error = -error2;
+        break;
+    case 'E':
+        _error = error2;
+        break;
     }
     free(pos);
-    if (abs(error) > 3) // a threshold value needs to be set
-    // change the state to error recovery
-    {
+    // really necessary?
+    if (abs(error) > 100) // a threshold value needs to be set
+                          // change the state to error recovery
         _off_course = 1;
-    }
 }
 
 void Robot::auto_route()
@@ -831,7 +444,6 @@ void Robot::auto_route()
     }
     else
     {
-        Serial.println("routing");
         _task_size = 2;
         _route = (int **)malloc(sizeof(int *) * _task_size);
         for (int i = 0; i < 2; i++)
@@ -846,11 +458,17 @@ void Robot::auto_route()
 
 void Robot::update_abs(int *pos)
 {
-    // calculate the difference between 
-    switch (_STATE)
+    // calculate the difference between the estimate and the actual
+    // compensate for the difference using the _dist variable
+    if (_STATE == 1)
     {
-    case 1:
-    
+        int diff;
+        if (_direction == 'N' || _direction == 'S')
+            diff = _pos[1] - pos[1];
+        else
+            diff = _pos[0] - pos[0];
+        if (diff > 100)
+            _dist += diff;
     }
     for (int i = 0; i < 3; i++)
         _pos[i] = pos[i];
@@ -921,6 +539,7 @@ void Robot::action_decoder()
         else if (y <= -1)
         {
             _STATE = 1;
+            _direction = 'N';
             _dist = abs(y);
         }
         else
@@ -940,6 +559,7 @@ void Robot::action_decoder()
         if (y >= 1)
         {
             _STATE = 1;
+            _direction = 'S';
             _dist = abs(y);
         }
         else if (y <= -1)
@@ -964,6 +584,7 @@ void Robot::action_decoder()
         if (x >= 1)
         {
             _STATE = 1;
+            _direction = 'E';
             _dist = abs(x);
         }
         else if (x <= -1)
@@ -993,6 +614,7 @@ void Robot::action_decoder()
         else if (x <= -1)
         {
             _STATE = 1;
+            _direction = 'W';
             _dist = abs(x);
         }
         else
@@ -1064,8 +686,6 @@ const char *password = "durf2020";
 void setup()
 {
     //  SET UP THE ID OF THE ROBOT HERE
-    //  loc.motor_init();
-    Serial.println("robot started");
     robot.robot_init();
     encoder1.numberTicks = 0;
     encoder2.numberTicks = 0;
@@ -1080,10 +700,8 @@ void setup()
             delay(1000);
         }
     }
-
     int pos[3] = {15000, 15000, 0};
     robot.update_abs(pos);
-    Serial.println("position initialized");
     float *pos_now = robot.get_pos();
     Serial.print(pos_now[0]);
     Serial.print("  ");
