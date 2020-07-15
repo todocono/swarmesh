@@ -204,7 +204,7 @@ int Locomotion::forward(int dist, int error)
     int tick2 = _motor2.get_tick();
     if (tick1 < dist)
     {
-        int gap;
+        int gap = 0;
         if (tick1 <= 250 && tick2 <= 250)
             spd = map(tick1, 0, 250, 120, 200);
         else if ((dist - tick1) <= 250)
@@ -728,6 +728,7 @@ void setup()
             switch (Purpose)
             {
             case 1:
+                Serial.println("position received");
                 const char *ID = robot.get_id();
                 if (!jInfo[ID][0][0] && !jInfo[ID][0][1]) break;
                 float pos[3];
@@ -735,11 +736,13 @@ void setup()
                     pos[i] = jInfo[ID][0][i];
                 pos[2] = jInfo[ID][1];
                 robot.update_abs(pos);
+                const char *str = "received";
+                udp.broadcast(str);
                 break;
             }
         });
     }
-    float pos[3] = {15000, 15000, 0};
+    float pos[3] = {45000, 15000, 0};
     robot.update_abs(pos);
     float *pos_now = robot.get_pos();
     Serial.print(pos_now[0]);
