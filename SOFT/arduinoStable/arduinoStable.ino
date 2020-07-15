@@ -265,7 +265,7 @@ void setup()
               doc["Purpose"] = 3;
               JsonArray Pos = doc.createNestedArray("Pos");
               Pos.add(POS[0]);
-              Pos.add(POS[1]);
+              Pos.add(POS[1]);sss
               serializeJson(doc, jsonStr);
               doc.clear();
               udp.writeTo((const uint8_t*) jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);

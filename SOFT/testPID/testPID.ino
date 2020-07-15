@@ -108,9 +108,63 @@ const uint8_t Motor::get_pin()
     return _PIN;
 }
 
+class PID
+{
+private:
+    unsigned long lastTime;
+    double Input, Output, Setpoint;
+    double errSum, lastErr;
+    double kp, ki, kd;
+    int SampleTime;
+
+public:
+    PID();
+    int pid_compute(int error);
+    void pid_tuning(double Kp, double Ki, double Kd);
+};
+
+PID::PID()
+{
+    kp = 0.8;
+    ki = 0.8;
+    kd = 0.8;
+    errSum = 0;
+    lastErr = 0;
+    SampleTime = 1000;
+}
+
+int PID::pid_compute(int error)
+{
+    unsigned long now = millis();
+    int timeChange = (now - lastTime);
+    if (timeChange >= SampleTime)
+    {
+        /*Compute all the working error variables*/
+        errSum += error;
+        double dErr = (error - lastErr);
+
+        /*Compute PID Output*/
+        Output = kp * error + ki * errSum + kd * dErr;
+
+        /*Remember some variables for next time*/
+        lastErr = error;
+        lastTime = now;
+    }
+    return Output;
+}
+
+void PID::pid_tuning(double Kp, double Ki, double Kd)
+{
+    double SampleTimeInSec = ((double)SampleTime) / 1000;
+    kp = Kp;
+    ki = Ki * SampleTimeInSec;
+    kd = Kd / SampleTimeInSec;
+}
+
 class Locomotion
 {
 private:
+    PID _pid;
     Motor _motor1;
     Motor _motor2;
     Motor *_motors;
@@ -127,11 +181,8 @@ public:
     int get_pulse();
     int forward(int dist, int error);
     int turn(int deg, char dir);
-    int pid_compute(int error);
-    int *get_tick(int *tick);
-    void motor_init();
     void encoder_reset();
-    void pid_tuning(double Kp, double Ki, double Kd);
+    void motor_init();
 };
 
 Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1, 27, 14, 1),
@@ -153,44 +204,23 @@ int Locomotion::forward(int dist, int error)
     int tick2 = _motor2.get_tick();
     if (tick1 < dist)
     {
+        int gap;
         if (tick1 <= 250 && tick2 <= 250)
-        {
             spd = map(tick1, 0, 250, 120, 200);
-            _motor1.motor_move(spd, 0);
-            _motor2.motor_move(spd, 0);
-        }
         else if ((dist - tick1) <= 250)
-        {
-            spd = (dist - tick1) * 0.8;
-            spd = map(spd, 0, 250, 120, 200);
-            _motor1.motor_move(spd, 0);
-            _motor2.motor_move(spd, 0);
-        }
+            spd = map((dist - tick1) * 0.8, 0, 250, 120, 200);
         if (!_off_course)
         {
             if (abs(tick1 - tick2) > 5)
-            {
-                if (tick1 < tick2)
-                {
-                    int error = (tick2 - tick1) * 0.5;
-                    _motor1.motor_move(spd + error, 0);
-                    _motor2.motor_move(spd - error, 0);
-                }
-                else if (tick1 > tick2)
-                {
-                    int error = (tick1 - tick2) * 0.5;
-                    _motor1.motor_move(spd - error, 0);
-                    _motor2.motor_move(spd + error, 0);
-                }
-            }
+                gap = (tick1 - tick2) * 0.5;
         }
         else
         {
-            int gap = pid_compute(error);
-            _motor1.motor_move(spd - gap, 0);
-            _motor2.motor_move(spd + gap, 0);
+            _off_course = 1;
+            int gap = _pid.pid_compute(error);
         }
-
+        _motor1.motor_move(spd - gap, 0);
+        _motor2.motor_move(spd + gap, 0);
         int tick1 = _motor1.get_tick();
         int tick2 = _motor2.get_tick();
         int ori = pos[2];
@@ -271,20 +301,6 @@ int Locomotion::turn(int deg, char dir)
     }
 }
 
-int *Locomotion::get_tick(int *tick)
-{
-    tick[0] = _motor1.get_tick();
-    tick[1] = _motor2.get_tick();
-    return tick;
-}
-
-int pid_compute(int error)
-{
-    int kp = 0.8;
-    int gap = kp * error;
-    return gap;
-}
-
 void Locomotion::motor_init()
 {
     _motors = (Motor *)malloc(sizeof(Motor) * 2);
@@ -328,16 +344,18 @@ private:
     int _task_size;
     int _off_course;
     int _dst[2];
-    char _direction;
-    int **_route;
     float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
+    int **_route;
+    char _direction;
+    const char *_ID;
     Locomotion _loc;
 
 public:
     Robot(Encoder *encoder1, Encoder *encoder2);
-    float *get_pos();
+    const char *get_id();
     int get_size();
     int get_state();
+    float *get_pos();
     int **get_route();
     void robot_init();
     void calc_error();
@@ -347,7 +365,7 @@ public:
     void main_executor();
     void action_decoder();
     void reroute(char dir);
-    void update_abs(int *pos);
+    void update_abs(float *pos);
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
@@ -365,6 +383,11 @@ float *Robot::get_pos()
     for (int i = 0; i < 3; i++)
         ptr[i] = _pos[i];
     return ptr;
+}
+
+const char *Robot::get_id()
+{
+    return _ID;
 }
 
 int Robot::get_size()
@@ -404,10 +427,6 @@ void Robot::calc_error()
         break;
     }
     free(pos);
-    // really necessary?
-    if (abs(error) > 100) // a threshold value needs to be set
-                          // change the state to error recovery
-        _off_course = 1;
 }
 
 void Robot::auto_route()
@@ -456,7 +475,7 @@ void Robot::auto_route()
     }
 }
 
-void Robot::update_abs(int *pos)
+void Robot::update_abs(float *pos)
 {
     // calculate the difference between the estimate and the actual
     // compensate for the difference using the _dist variable
@@ -490,7 +509,7 @@ void Robot::main_executor()
             action_decoder();
         break;
     case 1:
-        proceed = _loc.forward(_dist);
+        proceed = _loc.forward(_dist, _error);
         //      Serial.println("Moving forward");
         break;
     case 2:
@@ -700,7 +719,27 @@ void setup()
             delay(1000);
         }
     }
-    int pos[3] = {15000, 15000, 0};
+    if (udp.listenMulticast(IPAddress(224, 3, 29, 1), 10001))
+    {
+        udp.onPacket([](AsyncUDPPacket packet) {
+            DynamicJsonDocument jInfo(1024);
+            deserializeJson(jInfo, packet.data());
+            const int Purpose = jInfo["Purpose"];
+            switch (Purpose)
+            {
+            case 1:
+                const char *ID = robot.get_id();
+                if (!jInfo[ID][0][0] && !jInfo[ID][0][1]) break;
+                float pos[3];
+                for (int i = 0; i < 2; i ++)
+                    pos[i] = jInfo[ID][0][i];
+                pos[2] = jInfo[ID][1];
+                robot.update_abs(pos);
+                break;
+            }
+        });
+    }
+    float pos[3] = {15000, 15000, 0};
     robot.update_abs(pos);
     float *pos_now = robot.get_pos();
     Serial.print(pos_now[0]);

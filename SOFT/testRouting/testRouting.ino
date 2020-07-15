@@ -736,7 +736,7 @@ class Robot
     void main_executor();
     void action_decoder();
     void reroute(char dir);
-    void update_abs(int *pos);
+    void update_abs(float *pos);
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
@@ -848,7 +848,7 @@ void Robot::auto_route()
 }
 
 // this function would be called when the encoder ticks or when the server updates the robots global position
-void Robot::update_abs(int *pos)
+void Robot::update_abs(float *pos)
 {
   for (int i = 0; i < 3; i++)
     _pos[i] = pos[i];
