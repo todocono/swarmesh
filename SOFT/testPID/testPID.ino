@@ -125,9 +125,9 @@ public:
 
 PID::PID()
 {
-    kp = 0.8;
-    ki = 0.8;
-    kd = 0.8;
+    kp = 0.1;
+    ki = 0.0;
+    kd = 0.0;
     errSum = 0;
     lastErr = 0;
     SampleTime = 1000;
@@ -135,21 +135,22 @@ PID::PID()
 
 int PID::pid_compute(int error)
 {
-    unsigned long now = millis();
-    int timeChange = (now - lastTime);
-    if (timeChange >= SampleTime)
-    {
-        /*Compute all the working error variables*/
-        errSum += error;
-        double dErr = (error - lastErr);
+    Output = kp * error; // + ki * errSum + kd * dErr;
+    // unsigned long now = millis();
+    // int timeChange = (now - lastTime);
+    // if (timeChange >= SampleTime)
+    // {
+    //     /*Compute all the working error variables*/
+    //     errSum += error;
+    //     double dErr = (error - lastErr);
 
-        /*Compute PID Output*/
-        Output = kp * error + ki * errSum + kd * dErr;
+    //     /*Compute PID Output*/
+    //     Output = kp * error + ki * errSum + kd * dErr;
 
-        /*Remember some variables for next time*/
-        lastErr = error;
-        lastTime = now;
-    }
+    //     /*Remember some variables for next time*/
+    //     lastErr = error;
+    //     lastTime = now;
+    // }
     return Output;
 }
 
@@ -185,8 +186,8 @@ public:
     void motor_init();
 };
 
-Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1, 27, 14, 1),
-                                                               _motor2(encoder2, 12, 13, 2)
+Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor2(encoder1, 27, 14, 1),
+                                                               _motor1(encoder2, 12, 13, 2)
 {
     _PULSE = 7;
     _width = 800;
@@ -198,7 +199,7 @@ Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor1(encoder1,
 int Locomotion::forward(int dist, int error)
 {
     int spd = 200;
-    if (error > 300)
+    if (abs(error) > 300)
         _off_course = 1;
     int tick1 = _motor1.get_tick();
     int tick2 = _motor2.get_tick();
@@ -213,14 +214,15 @@ int Locomotion::forward(int dist, int error)
         {
             if (abs(tick1 - tick2) > 5)
                 gap = (tick1 - tick2) * 0.5;
+            _motor1.motor_move(spd - gap, 0);
+            _motor2.motor_move(spd + gap, 0);
         }
         else
         {
-            _off_course = 1;
             int gap = _pid.pid_compute(error);
+            _motor1.motor_move(spd - gap, 0);
+            _motor2.motor_move(spd + gap, 0);
         }
-        _motor1.motor_move(spd - gap, 0);
-        _motor2.motor_move(spd + gap, 0);
         int tick1 = _motor1.get_tick();
         int tick2 = _motor2.get_tick();
         int ori = pos[2];
@@ -253,13 +255,13 @@ int Locomotion::turn(int deg, char dir)
     switch (dir)
     {
     case 'L':
-        num1 = 0;
-        num2 = 1;
+        num1 = 1;
+        num2 = 0;
         break;
 
     case 'R':
-        num1 = 1;
-        num2 = 0;
+        num1 = 0;
+        num2 = 1;
         break;
     }
     if (_motor1.get_tick() <= _PULSE * deg)
@@ -347,7 +349,7 @@ private:
     float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
     int **_route;
     char _direction;
-    const char *_ID;
+    const char *_ID = "2";
     Locomotion _loc;
 
 public:
@@ -360,12 +362,13 @@ public:
     void robot_init();
     void calc_error();
     void check_task();
-    void update_est();
     void auto_route();
+    void update_est();
     void main_executor();
     void action_decoder();
     void reroute(char dir);
     void update_abs(float *pos);
+    void update_error(float *pos);
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
@@ -479,18 +482,40 @@ void Robot::update_abs(float *pos)
 {
     // calculate the difference between the estimate and the actual
     // compensate for the difference using the _dist variable
-    if (_STATE == 1)
-    {
-        int diff;
-        if (_direction == 'N' || _direction == 'S')
-            diff = _pos[1] - pos[1];
-        else
-            diff = _pos[0] - pos[0];
-        if (diff > 100)
-            _dist += diff;
-    }
+    // if (_STATE == 1)
+    // {
+    //     int diff;
+    //     if (_direction == 'N' || _direction == 'S')
+    //         diff = _pos[1] - pos[1];
+    //     else
+    //         diff = _pos[0] - pos[0];
+    //     if (diff > 100)
+    //         _dist += diff;
+    // }
     for (int i = 0; i < 3; i++)
         _pos[i] = pos[i];
+}
+
+void Robot::update_error(float *pos)
+{
+    int *crt_task = _route[_ptr];
+    float error1 = pos[0] - crt_task[0];
+    float error2 = pos[1] - crt_task[1];
+    switch (_direction)
+    {
+    case 'N':
+        _error = error1;
+        break;
+    case 'S':
+        _error = -error1;
+        break;
+    case 'W':
+        _error = -error2;
+        break;
+    case 'E':
+        _error = error2;
+        break;
+    }
 }
 
 int **Robot::get_route()
@@ -725,19 +750,20 @@ void setup()
             DynamicJsonDocument jInfo(1024);
             deserializeJson(jInfo, packet.data());
             const int Purpose = jInfo["Purpose"];
+            Serial.println(Purpose);
             switch (Purpose)
             {
             case 1:
-                Serial.println("position received");
-                const char *ID = robot.get_id();
-                if (!jInfo[ID][0][0] && !jInfo[ID][0][1]) break;
+                const char *ID;
+                ID = "2";
+                if (!jInfo[ID][0] && !jInfo[ID][1])
+                    break;
+                Serial.println("message received");
                 float pos[3];
-                for (int i = 0; i < 2; i ++)
-                    pos[i] = jInfo[ID][0][i];
-                pos[2] = jInfo[ID][1];
-                robot.update_abs(pos);
-                const char *str = "received";
-                udp.broadcast(str);
+                for (int i = 0; i < 3; i++)
+                    pos[i] = jInfo[ID][i];
+                robot.update_error(pos);
+                Serial.println("updated");
                 break;
             }
         });

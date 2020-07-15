@@ -84,6 +84,7 @@ void setup() {
 }
 
 void loop() {
+  forward(1000);
 //  if (state == 1){
 //    forward(1000);
 //  }
