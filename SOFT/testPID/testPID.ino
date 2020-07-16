@@ -125,7 +125,7 @@ public:
 
 PID::PID()
 {
-    kp = 0.1;
+    kp = 0.005;
     ki = 0.0;
     kd = 0.0;
     errSum = 0;
@@ -182,6 +182,7 @@ public:
     int get_pulse();
     int forward(int dist, int error);
     int turn(int deg, char dir);
+    void tune_pid(double kp);
     void encoder_reset();
     void motor_init();
 };
@@ -196,11 +197,18 @@ Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor2(encoder1,
         _prev_tick[i] = 0;
 }
 
+void Locomotion::tune_pid(double kp)
+{
+    _pid.pid_tuning(kp, 0, 0);
+}
+
 int Locomotion::forward(int dist, int error)
 {
     int spd = 200;
-    if (abs(error) > 300)
+    if (abs(error) >= 100)
         _off_course = 1;
+    else
+        _off_course = 0;
     int tick1 = _motor1.get_tick();
     int tick2 = _motor2.get_tick();
     if (tick1 < dist)
@@ -220,6 +228,7 @@ int Locomotion::forward(int dist, int error)
         else
         {
             int gap = _pid.pid_compute(error);
+            Serial.println(gap);
             _motor1.motor_move(spd - gap, 0);
             _motor2.motor_move(spd + gap, 0);
         }
@@ -357,7 +366,8 @@ public:
     const char *get_id();
     int get_size();
     int get_state();
-    float *get_pos();
+    int get_error();
+    int *get_pos();
     int **get_route();
     void robot_init();
     void calc_error();
@@ -367,8 +377,10 @@ public:
     void main_executor();
     void action_decoder();
     void reroute(char dir);
-    void update_abs(float *pos);
-    void update_error(float *pos);
+    void tune_pid(double kp);
+    void update_abs(int *pos);
+    void update_error(int *pos);
+    void update_state(int state);
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
@@ -380,9 +392,14 @@ Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
     _pos = _loc.pos;
 }
 
-float *Robot::get_pos()
+int Robot::get_error()
 {
-    float *ptr = (float *)malloc(sizeof(float) * 3);
+    return _error;
+}
+
+int *Robot::get_pos()
+{
+    int *ptr = (int *)malloc(sizeof(int) * 3);
     for (int i = 0; i < 3; i++)
         ptr[i] = _pos[i];
     return ptr;
@@ -410,7 +427,7 @@ void Robot::robot_init()
 
 void Robot::calc_error()
 {
-    float *pos = get_pos();
+    int *pos = get_pos();
     int *crt_task = _route[_ptr];
     float error1 = pos[0] - crt_task[0];
     float error2 = pos[1] - crt_task[1];
@@ -436,7 +453,7 @@ void Robot::auto_route()
 {
     // A* routing algorithm goes here
     float dst[2];
-    dst[0] = 0;
+    dst[0] = 1500;
     dst[1] = 15000;
     int x_distance = (dst[0] - _pos[0]) / 1500;
     int y_distance = (dst[1] - _pos[1]) / 1500;
@@ -478,7 +495,17 @@ void Robot::auto_route()
     }
 }
 
-void Robot::update_abs(float *pos)
+void Robot::tune_pid(double kp)
+{
+    _loc.tune_pid(kp);
+}
+
+void Robot::update_state(int state)
+{
+    _STATE = state;
+}
+
+void Robot::update_abs(int *pos)
 {
     // calculate the difference between the estimate and the actual
     // compensate for the difference using the _dist variable
@@ -496,11 +523,11 @@ void Robot::update_abs(float *pos)
         _pos[i] = pos[i];
 }
 
-void Robot::update_error(float *pos)
+void Robot::update_error(int *pos)
 {
     int *crt_task = _route[_ptr];
-    float error1 = pos[0] - crt_task[0];
-    float error2 = pos[1] - crt_task[1];
+    int error1 = pos[0] - crt_task[0];
+    int error2 = pos[1] - crt_task[1];
     switch (_direction)
     {
     case 'N':
@@ -547,11 +574,7 @@ void Robot::main_executor()
         break;
     case 4:
         //      Serial.println("arrived");
-        Serial.print(_pos[0]);
-        Serial.print("  ");
-        Serial.print(_pos[1]);
-        Serial.print("  ");
-        Serial.println(_pos[2]);
+
         break;
     }
     if (proceed)
@@ -567,7 +590,7 @@ void Robot::main_executor()
 
 void Robot::action_decoder()
 {
-    float *pos = get_pos();
+    int *pos = get_pos();
     int x = _route[_ptr][0] - pos[0];
     int y = _route[_ptr][1] - pos[1];
     free(pos);
@@ -691,13 +714,13 @@ void Robot::action_decoder()
 
 void Robot::check_task()
 {
-    float *pos = get_pos();
+    int *pos = get_pos();
     Serial.print(_pos[0]);
     Serial.print("  ");
     Serial.print(_pos[1]);
     Serial.print("  ");
     Serial.println(_pos[2]);
-    if (abs(pos[0] - _route[_ptr][0]) <= 5 && abs(pos[1] == _route[_ptr][1]) <= 5)
+    if (abs(pos[0] - _route[_ptr][0]) <= 50 && abs(pos[1] == _route[_ptr][1]) <= 50)
     {
         Serial.println("arrived at a dst");
         if (_ptr + 1 == _task_size)
@@ -727,6 +750,8 @@ AsyncUDP udp;
 const char *ssid = "nowifi";
 const char *password = "durf2020";
 
+int ctr = 0;
+
 void setup()
 {
     //  SET UP THE ID OF THE ROBOT HERE
@@ -736,6 +761,11 @@ void setup()
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
     Serial.begin(115200);
+    robot.tune_pid(0.003);
+    int pos_now[3] = {22500, 15000, -90};
+    robot.update_state(4);
+    robot.update_abs(pos_now);
+    robot.auto_route();
     if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
         Serial.println("WiFi Failed");
@@ -750,44 +780,76 @@ void setup()
             DynamicJsonDocument jInfo(1024);
             deserializeJson(jInfo, packet.data());
             const int Purpose = jInfo["Purpose"];
-            Serial.println(Purpose);
+
             switch (Purpose)
             {
             case 1:
+            {
                 const char *ID;
-                ID = "2";
-                if (!jInfo[ID][0] && !jInfo[ID][1])
+                ID = "7";
+                if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
                     break;
-                Serial.println("message received");
-                float pos[3];
-                for (int i = 0; i < 3; i++)
-                    pos[i] = jInfo[ID][i];
-                robot.update_error(pos);
-                Serial.println("updated");
+                int pos_n[3];
+                for (int i = 0; i < 2; i++)
+                    pos_n[i] = jInfo[ID][0][i];
+                pos_n[2] = jInfo[ID][1];
+                robot.update_abs(pos_n);
+                robot.calc_error();
+                char jsonStr[80];
+                //              jsonCreator(jsonStr);
+                const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
+                DynamicJsonDocument doc(capacity);
+                doc["Error"] = robot.get_error();
+                // JsonArray Pos = doc.createNestedArray("Pos");
+                // Pos.add(POS[0]);
+                // Pos.add(POS[1]);
+                serializeJson(doc, jsonStr);
+                doc.clear();
+                udp.broadcast(jsonStr);
+                if (!ctr)
+                {
+                    robot.update_state(0);
+                    ctr++;
+                }
                 break;
+            }
+            case 2:
+            {
+                int pos_now[3] = {22500, 15000, -90};
+                robot.update_state(0);
+                robot.update_abs(pos_now);
+                robot.auto_route();
+                break;
+            }
+            case 3:
+            {
+                double kp = jInfo["PID"];
+                robot.tune_pid(kp);
+                udp.broadcast("PID tuned");
+                break;
+            }
             }
         });
     }
-    float pos[3] = {45000, 15000, 0};
-    robot.update_abs(pos);
-    float *pos_now = robot.get_pos();
-    Serial.print(pos_now[0]);
-    Serial.print("  ");
-    Serial.println(pos_now[1]);
-    robot.auto_route();
+    // robot.update_state(4);
+    // float *pos_now = robot.get_pos();
+    // Serial.print(pos_now[0]);
+    // Serial.print("  ");
+    // Serial.println(pos_now[1]);
     delay(1000);
     //  listening to both task and current position on this channel
     Serial.println("initialized");
-    int **route = robot.get_route();
-    for (int i = 0; i < robot.get_size(); i++)
-    {
-        Serial.print(route[i][0]);
-        Serial.print("  ");
-        Serial.println(route[i][1]);
-    }
+    // int **route = robot.get_route();
+    // for (int i = 0; i < robot.get_size(); i++)
+    // {
+    //     Serial.print(route[i][0]);
+    //     Serial.print("  ");
+    //     Serial.println(route[i][1]);
+    // }
 }
 
 void loop()
 {
-    robot.main_executor();
+    if (robot.get_state() != 4)
+        robot.main_executor();
 }
