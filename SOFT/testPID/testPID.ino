@@ -36,12 +36,12 @@ private:
     int _DIR;
     int _IDX;
     uint8_t _PIN;
-    void _reset_encoder();
 
 public:
     Motor(Encoder *encoder, int PWM, int DIR, int IDX);
     void motor_move(int spd, int dir);
     void motor_stop();
+    void reset_encoder();
     const int get_idx();
     const int get_pwm();
     const int get_dir();
@@ -72,14 +72,14 @@ void Motor::motor_move(int spd, int dir)
     }
 }
 
-void Motor::_reset_encoder()
+void Motor::reset_encoder()
 {
     (*_encoder).numberTicks = 0;
 }
 
 void Motor::motor_stop()
 {
-    _reset_encoder();
+    reset_encoder();
     motor_move(0, 0);
 }
 
@@ -183,7 +183,7 @@ public:
     int forward(int dist, int error);
     int turn(int deg, char dir);
     void tune_pid(double kp);
-    void encoder_reset();
+    void reset_encoders();
     void motor_init();
 };
 
@@ -332,10 +332,13 @@ void Locomotion::motor_init()
     }
 }
 
-void Locomotion::encoder_reset()
+void Locomotion::reset_encoders()
 {
     for (int i = 0; i < 2; i++)
-        _motors[i].motor_stop();
+    {
+        _motors[i].reset_encoder();
+        _prev_tick[i] = 0;
+    }
 }
 
 int Locomotion::get_pulse()
@@ -509,16 +512,14 @@ void Robot::update_abs(int *pos)
 {
     // calculate the difference between the estimate and the actual
     // compensate for the difference using the _dist variable
-    // if (_STATE == 1)
-    // {
-    //     int diff;
-    //     if (_direction == 'N' || _direction == 'S')
-    //         diff = _pos[1] - pos[1];
-    //     else
-    //         diff = _pos[0] - pos[0];
-    //     if (diff > 100)
-    //         _dist += diff;
-    // }
+    if (_STATE == 1)
+    {
+        _loc.reset_encoders();
+        if (_direction == 'N' || _direction == 'S')
+            _dist = abs(_route[_ptr][1] - pos[1]);
+        else
+            _dist = abs(_route[_ptr][0] - pos[0]);
+    }
     for (int i = 0; i < 3; i++)
         _pos[i] = pos[i];
 }
@@ -762,10 +763,7 @@ void setup()
     WiFi.begin(ssid, password);
     Serial.begin(115200);
     robot.tune_pid(0.003);
-    int pos_now[3] = {22500, 15000, -90};
-    robot.update_state(4);
-    robot.update_abs(pos_now);
-    robot.auto_route();
+    robot.update_state(-1);
     if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
         Serial.println("WiFi Failed");
@@ -809,6 +807,7 @@ void setup()
                 if (!ctr)
                 {
                     robot.update_state(0);
+                    robot.auto_route();
                     ctr++;
                 }
                 break;
@@ -850,6 +849,6 @@ void setup()
 
 void loop()
 {
-    if (robot.get_state() != 4)
+    if (robot.get_state() != -1)
         robot.main_executor();
 }
