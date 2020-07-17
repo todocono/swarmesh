@@ -190,7 +190,7 @@ public:
 Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor2(encoder1, 27, 14, 1),
                                                                _motor1(encoder2, 12, 13, 2)
 {
-    _PULSE = 7;
+    _PULSE = 5;
     _width = 800;
     _off_course = 0;
     for (int i = 0; i < 2; i++)
@@ -205,19 +205,16 @@ void Locomotion::tune_pid(double kp)
 int Locomotion::forward(int dist, int error)
 {
     int spd = 200;
-    if (abs(error) >= 100)
-        _off_course = 1;
-    else
-        _off_course = 0;
+    _off_course = 0;
+    // if (abs(error) >= 100)
+    //     _off_course = 1;
+    // else
+    //     _off_course = 0;
     int tick1 = _motor1.get_tick();
     int tick2 = _motor2.get_tick();
     if (tick1 < dist)
     {
         int gap = 0;
-        if (tick1 <= 250 && tick2 <= 250)
-            spd = map(tick1, 0, 250, 120, 200);
-        else if ((dist - tick1) <= 250)
-            spd = map((dist - tick1) * 0.8, 0, 250, 120, 200);
         if (!_off_course)
         {
             if (abs(tick1 - tick2) > 5)
@@ -227,7 +224,7 @@ int Locomotion::forward(int dist, int error)
         }
         else
         {
-            int gap = _pid.pid_compute(error);
+            // int gap = _pid.pid_compute(error);
             Serial.println(gap);
             _motor1.motor_move(spd - gap, 0);
             _motor2.motor_move(spd + gap, 0);
@@ -284,25 +281,25 @@ int Locomotion::turn(int deg, char dir)
         //    } else {
         _motor1.motor_move(100, num1);
         _motor2.motor_move(100, num2);
-        int tick = _motor1.get_tick();
-        _prev_tick[0] = tick;
+        // int tick = _motor1.get_tick();
+        // _prev_tick[0] = tick;
         return 0;
     }
     else
     {
-        switch (dir)
-        {
-        case 'L':
-            pos[2] -= deg;
-            if (pos[2] < -180)
-                pos[2] += 360;
-            break;
-        case 'R':
-            pos[2] += deg;
-            if (pos[2] > 180)
-                pos[2] -= 360;
-            break;
-        }
+        // switch (dir)
+        // {
+        // case 'L':
+        //     pos[2] -= deg;
+        //     if (pos[2] < -180)
+        //         pos[2] += 360;
+        //     break;
+        // case 'R':
+        //     pos[2] += deg;
+        //     if (pos[2] > 180)
+        //         pos[2] -= 360;
+        //     break;
+        // }
         for (int i = 0; i < 2; i++)
         {
             _motors[i].motor_stop();
@@ -460,9 +457,15 @@ void Robot::auto_route()
     dst[1] = 15000;
     int x_distance = (dst[0] - _pos[0]) / 1500;
     int y_distance = (dst[1] - _pos[1]) / 1500;
+    Serial.println(x_distance);
+    Serial.println(y_distance);
+    Serial.println();
     // get the remainder of the division
     int x_remainder = (dst[0] - _pos[0]) % 1500;
     int y_remainder = (dst[1] - _pos[1]) % 1500;
+    Serial.println(x_remainder);
+    Serial.println(y_remainder);
+    Serial.println();
     if (abs(x_remainder) > 50 && abs(y_remainder) > 50)
         tmp = 2;
     else
@@ -473,15 +476,17 @@ void Robot::auto_route()
         // when both x_distance and y_distance is greater than 0
         srand((unsigned)time(0));
         int random_num = rand() % (abs(x_distance) + 1);
-        random_num = (x_distance > 0)? random_num : (-random_num);
+        random_num = (x_distance > 0) ? random_num : (-random_num);
         _task_size = tmp + 4;
+        _route = (int **)malloc(sizeof(int *) * _task_size);
         for (int i = 0; i < _task_size; i++)
             _route[i] = (int *)malloc(sizeof(int) * 2);
+        Serial.println("distance calculated");
         _route[tmp + 0][0] = dst[0] - x_distance * 1500;
         _route[tmp + 0][1] = dst[1] - y_distance * 1500;
         _route[tmp + 1][0] = dst[0] - random_num * 1500;
         _route[tmp + 1][1] = dst[1] - y_distance * 1500;
-        _route[tmp + 2][0] = _route[1][0];
+        _route[tmp + 2][0] = dst[0] - random_num * 1500;
         _route[tmp + 2][1] = dst[1];
         _route[tmp + 3][0] = dst[0];
         _route[tmp + 3][1] = dst[1];
@@ -507,9 +512,9 @@ void Robot::auto_route()
     }
     if (tmp)
     {
-        for (int i = 0; i < 2; i ++)
+        for (int i = 0; i < 2; i++)
             _route[0][i] = _pos[i];
-        _route[1][0] = _pos[0] - x_remainder;
+        _route[1][0] = _pos[0] + x_remainder;
         _route[1][1] = _pos[1];
     }
 }
@@ -528,14 +533,14 @@ void Robot::update_abs(int *pos)
 {
     // calculate the difference between the estimate and the actual
     // compensate for the difference using the _dist variable
-    if (_STATE == 1)
-    {
-        _loc.reset_encoders();
-        if (_direction == 'N' || _direction == 'S')
-            _dist = abs(_route[_ptr][1] - pos[1]);
-        else
-            _dist = abs(_route[_ptr][0] - pos[0]);
-    }
+    // if (_STATE == 1)
+    // {
+    //     _loc.reset_encoders();
+    //     if (_direction == 'N' || _direction == 'S')
+    //         _dist = abs(_route[_ptr][1] - pos[1]);
+    //     else
+    //         _dist = abs(_route[_ptr][0] - pos[0]);
+    // }
     for (int i = 0; i < 3; i++)
         _pos[i] = pos[i];
 }
@@ -715,28 +720,30 @@ void Robot::action_decoder()
     }
     else
     {
-        int remain = ORI % 90;
-        if (abs(remain) >= 45)
-        {
-            _STATE = (remain < 0) ? 2 : 3;
-            _turn = 90 - abs(remain);
-        }
-        else
-        {
-            _STATE = (remain > 0) ? 2 : 3;
-            _turn = abs(remain);
-        }
+    //     int remain = ORI % 90;
+    //     if (abs(remain) >= 45)
+    //     {
+    //         _STATE = (remain < 0) ? 2 : 3;
+    //         _turn = 90 - abs(remain);
+    //     }
+    //     else
+    //     {
+    //         _STATE = (remain > 0) ? 2 : 3;
+    //         _turn = abs(remain);
+    //     }
+        _turn = abs(ORI);
+        _STATE = (ORI > 0)? 2 : 3;
+        Serial.println(_turn);
     }
 }
 
 void Robot::check_task()
 {
     int *pos = get_pos();
-    Serial.print(_pos[0]);
+    Serial.print(_route[_ptr][0]);
     Serial.print("  ");
-    Serial.print(_pos[1]);
-    Serial.print("  ");
-    Serial.println(_pos[2]);
+    Serial.println(_route[_ptr][1]);
+
     if (abs(pos[0] - _route[_ptr][0]) <= 50 && abs(pos[1] == _route[_ptr][1]) <= 50)
     {
         Serial.println("arrived at a dst");
@@ -810,22 +817,27 @@ void setup()
                 pos_n[2] = jInfo[ID][1];
                 robot.update_abs(pos_n);
                 if (robot.get_state() == 1)
-                  robot.calc_error();
+                    robot.calc_error();
                 char jsonStr[80];
                 //              jsonCreator(jsonStr);
-                const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
-                DynamicJsonDocument doc(capacity);
-                doc["Error"] = robot.get_error();
-                // JsonArray Pos = doc.createNestedArray("Pos");
-                // Pos.add(POS[0]);
-                // Pos.add(POS[1]);
-                serializeJson(doc, jsonStr);
-                doc.clear();
-                udp.broadcast(jsonStr);
                 if (!ctr)
                 {
                     robot.update_state(0);
                     robot.auto_route();
+                    int **route = robot.get_route();
+                    const size_t capacity = JSON_ARRAY_SIZE(robot.get_size()) + JSON_OBJECT_SIZE(2);
+                    DynamicJsonDocument doc(capacity);
+                    doc["Error"] = robot.get_error();
+                    JsonArray route_n = doc.createNestedArray("route");
+                    for (int i = 0; i < robot.get_size(); i++)
+                    {
+                        for (int j = 0; j < 2; j++)
+                            route_n.add(route[i][j]);
+                        Serial.println();
+                    }
+                    serializeJson(doc, jsonStr);
+                    doc.clear();
+                    udp.broadcast(jsonStr);
                     ctr++;
                 }
                 break;
