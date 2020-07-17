@@ -178,7 +178,7 @@ private:
 
 public:
     Locomotion(Encoder *encoder1, Encoder *encoder2);
-    float pos[3];
+    int pos[3];
     int get_pulse();
     int forward(int dist, int error);
     int turn(int deg, char dir);
@@ -357,8 +357,8 @@ private:
     int _width;
     int _task_size;
     int _off_course;
+    int *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
     int _dst[2];
-    float *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
     int **_route;
     char _direction;
     const char *_ID = "2";
@@ -454,47 +454,63 @@ void Robot::calc_error()
 
 void Robot::auto_route()
 {
-    // A* routing algorithm goes here
-    float dst[2];
+    int tmp;
+    int dst[2];
     dst[0] = 1500;
     dst[1] = 15000;
     int x_distance = (dst[0] - _pos[0]) / 1500;
     int y_distance = (dst[1] - _pos[1]) / 1500;
-
+    // get the remainder of the division
+    int x_remainder = (dst[0] - _pos[0]) % 1500;
+    int y_remainder = (dst[1] - _pos[1]) % 1500;
+    if (abs(x_remainder) > 50 && abs(y_remainder) > 50)
+        tmp = 2;
+    else
+        tmp = 0;
     // randomly decide where to break the route
     if (x_distance && y_distance)
     {
-        Serial.println("setting break points");
         // when both x_distance and y_distance is greater than 0
-        int random_num = rand() % abs(x_distance);
-        _route = (int **)malloc(sizeof(int *) * 4);
-        for (int i = 0; i < 4; i++)
+        srand((unsigned)time(0));
+        int random_num = rand() % (abs(x_distance) + 1);
+        random_num = (x_distance > 0)? random_num : (-random_num);
+        _task_size = tmp + 4;
+        for (int i = 0; i < _task_size; i++)
             _route[i] = (int *)malloc(sizeof(int) * 2);
-        //
-        for (int i = 0; i < 2; i++)
-            _route[0][i] = _pos[i];
-        _task_size = 4;
-        if (x_distance > 0)
-            _route[1][0] = _pos[0] + random_num * 1500;
-        else
-            _route[1][0] = _pos[0] - random_num * 1500;
-        _route[1][1] = _pos[1];
-        _route[2][0] = _route[1][0];
-        _route[2][1] = _route[1][1] + y_distance * 1500;
-        _route[3][0] = dst[0];
-        _route[3][1] = dst[1];
+        _route[tmp + 0][0] = dst[0] - x_distance * 1500;
+        _route[tmp + 0][1] = dst[1] - y_distance * 1500;
+        _route[tmp + 1][0] = dst[0] - random_num * 1500;
+        _route[tmp + 1][1] = dst[1] - y_distance * 1500;
+        _route[tmp + 2][0] = _route[1][0];
+        _route[tmp + 2][1] = dst[1];
+        _route[tmp + 3][0] = dst[0];
+        _route[tmp + 3][1] = dst[1];
     }
     else
     {
-        _task_size = 2;
+        _task_size = tmp + 2;
         _route = (int **)malloc(sizeof(int *) * _task_size);
         for (int i = 0; i < 2; i++)
             _route[i] = (int *)malloc(sizeof(int) * 2);
         for (int i = 0; i < 2; i++)
+            _route[tmp + 1][i] = dst[i];
+        if (x_distance)
         {
-            _route[0][i] = _pos[i];
-            _route[1][i] = dst[i];
+            _route[tmp][0] = dst[0] - x_distance * 1500;
+            _route[tmp][1] = dst[1];
         }
+        else
+        {
+            _route[tmp][0] = dst[0];
+            _route[tmp][1] = dst[1] - y_distance * 1500;
+        }
+    }
+    if (tmp)
+    {
+        for (int i = 0; i < 2; i ++)
+            _route[0][i] = _pos[i];
+        _route[1][0] = _pos[0] - x_remainder;
+        _route[1][1] = _pos[1];
     }
 }
 
