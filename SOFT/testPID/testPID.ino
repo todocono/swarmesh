@@ -764,6 +764,7 @@ void setup()
     Serial.begin(115200);
     robot.tune_pid(0.003);
     robot.update_state(-1);
+    Serial.println("initializing robot");
     if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
         Serial.println("WiFi Failed");
@@ -792,7 +793,8 @@ void setup()
                     pos_n[i] = jInfo[ID][0][i];
                 pos_n[2] = jInfo[ID][1];
                 robot.update_abs(pos_n);
-                robot.calc_error();
+                if (robot.get_state() == 1)
+                  robot.calc_error();
                 char jsonStr[80];
                 //              jsonCreator(jsonStr);
                 const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
