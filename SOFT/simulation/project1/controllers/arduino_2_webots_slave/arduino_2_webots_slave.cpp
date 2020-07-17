@@ -300,6 +300,7 @@ void Slave::run() {
         double rad = atan2(north[0], north[2]);
         double bearing = (rad + 2 * 1.5708) / M_PI * 180.0;
         ORI = bearing;
+     
 
         if (receiver->getQueueLength() > 0 && !isMoving)
         {
@@ -309,7 +310,6 @@ void Slave::run() {
             string strPurpose;
             strPurpose = message[0];
             const int Purpose = stoi(strPurpose);
-
 
             switch (Purpose)
             {
@@ -343,9 +343,7 @@ void Slave::run() {
 
                 if (ptr[0] != -1 && !arrive)
                 {
-
                     actionDecoder(ORI, POS, ptr);
-
                 }
                 else if (arrive)
                 {
@@ -364,7 +362,6 @@ void Slave::run() {
                     }
                 }
             }
-
         }
 
 

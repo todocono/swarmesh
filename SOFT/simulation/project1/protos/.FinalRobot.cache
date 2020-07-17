@@ -1,0 +1,11 @@
+Webots Proto Cache File version 1.4
+protoFileHash: e8aba6537dd40d3a06805513e2f8a5af
+containsDevices: 0
+baseType: Robot
+slotType: 
+parameters: translation,rotation,controller
+tags: 
+license:  Apache License 2.0
+licenseUrl:  http://www.apache.org/licenses/LICENSE-2.0
+documentationUrl: 
+info: This\sis\sa\sproto\sfile\sfor\sWebots\sfor\sthe\sFinalRobot\nExtracted\sfrom:\snew_robot.xacro\n

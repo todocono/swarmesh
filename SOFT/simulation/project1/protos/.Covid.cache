@@ -1,0 +1,11 @@
+Webots Proto Cache File version 1.4
+protoFileHash: 506854d3bee86b8385334c4d0b19a036
+containsDevices: 0
+baseType: Robot
+slotType: 
+parameters: translation,rotation,controller
+tags: 
+license:  Apache License 2.0
+licenseUrl:  http://www.apache.org/licenses/LICENSE-2.0
+documentationUrl: 
+info: This\sis\sa\sproto\sfile\sfor\sWebots\sfor\sthe\sCovid\nExtracted\sfrom:\sCovid.xacro\n

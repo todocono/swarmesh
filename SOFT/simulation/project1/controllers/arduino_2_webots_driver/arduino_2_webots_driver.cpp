@@ -50,7 +50,7 @@ void Driver::run()
 {
   // const double *RotationValues = translationField->getSFRotation();
   // cout << RotationValues[3] << endl;
-  int numOfRobots = 5;
+  int numOfRobots = 10;
   string strNumOfRobots = to_string(numOfRobots);
   string message("1 ");
   message.append(strNumOfRobots);
