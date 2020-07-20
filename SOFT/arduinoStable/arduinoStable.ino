@@ -200,7 +200,7 @@ Destinations dstc;
 void setup()
 {
   //  SET UP THE ID OF THE ROBOT HERE
-  ID = "5";
+  ID = "7";
   pinMode(PWMB, OUTPUT);
   pinMode(DIRB, OUTPUT);
   pinMode(DIRA, OUTPUT);
@@ -265,7 +265,7 @@ void setup()
               doc["Purpose"] = 3;
               JsonArray Pos = doc.createNestedArray("Pos");
               Pos.add(POS[0]);
-              Pos.add(POS[1]);sss
+              Pos.add(POS[1]);
               serializeJson(doc, jsonStr);
               doc.clear();
               udp.writeTo((const uint8_t*) jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
