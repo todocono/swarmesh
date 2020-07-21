@@ -125,7 +125,7 @@ public:
 
 PID::PID()
 {
-    kp = 0.012;
+    kp = 0.015;
     ki = 0.0;
     kd = 0.0;
     errSum = 0;
@@ -215,15 +215,9 @@ int Locomotion::forward(int dist, int error)
             spd = map(dist - tick1, 0, 750, 80, 150);
         int gap = 0;
         if (!_off_course)
-        {
-            gap = -(tick1 - tick2) * 0.8;
-            Serial.println("tuning encoders");
-            Serial.println(gap);
-        }
+            gap = -(tick1 - tick2) * 0.5;
         else
-        {
             gap = _pid.pid_compute(error);
-        }
         _motor1.motor_move(spd - gap, 0);
         _motor2.motor_move(spd + gap, 0);
         int tick1 = _motor1.get_tick();
@@ -266,7 +260,6 @@ int Locomotion::turn(int deg, char dir)
     }
     else
     {
-        Serial.println("Finished turning");
         for (int i = 0; i < 2; i++)
         {
             _motors[i].motor_stop();
@@ -330,6 +323,7 @@ private:
     int _task_size;
     int _off_course;
     int _turn_timer;
+    int _turn_update;
     int _prev_time;
     int *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
     int _dst[2];
@@ -356,7 +350,6 @@ public:
     void reroute(char dir);
     void tune_pid(double kp);
     void update_abs(int *pos);
-    void update_error(int *pos);
     void update_state(int state);
 };
 
@@ -367,7 +360,8 @@ Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
     _STATE = 0;
     _width = 8;
     _prev_time = 0;
-    _turn_timer = 0;
+    _turn_update = 0;
+    _turn_timer = 2000;
     _off_course = 0;
     _pos = _loc.pos;
 }
@@ -446,6 +440,7 @@ void Robot::auto_route()
     _route[1][1] = _pos[1];
     _route[2][0] = dst[0];
     _route[2][1] = dst[1];
+    _task_size = 3;
     // int x_distance = (dst[0] - _pos[0]) / 1500;
     // int y_distance = (dst[1] - _pos[1]) / 1500;
     // Serial.println(x_distance);
@@ -533,12 +528,39 @@ void Robot::update_abs(int *pos)
             _dist = abs(_route[_ptr][0] - pos[0]) - 150;
         _dist = (_dist < 0) ? 0 : _dist;
     }
-    if (_STATE != 2 && (millis() - _prev_time) > _turn_timer)
+    if (_STATE != 2 && (millis() - _prev_time) >= _turn_timer)
     {
         // only update the orientation when the state is not at 2
-        _pos[2] = pos[2];
-        _turn_timer = 0;
-        _prev_time = 0;
+        Serial.print("New orientation: ");
+        Serial.println(pos[2]);
+        Serial.print("Old orientation: ");
+        Serial.println(_pos[2]);
+        int turn_error = abs(pos[2] - _pos[2]);
+        if (turn_error > 20)
+        {
+            // receive the orientation again
+            if (_ctr)
+            {
+                // already received the absurd orientation
+                // accept
+                _pos[2] = pos[2];
+                _prev_time = millis();
+                _turn_update = 0;
+            }
+            else
+            {
+                // wait for another interval
+                _prev_time = millis();
+                _turn_update = 0;
+                _ctr++;
+            }
+        }
+        else
+        {
+            _pos[2] = pos[2];
+            _prev_time = 0;
+            _turn_update = 1;
+        }
     }
     for (int i = 0; i < 2; i++)
         _pos[i] = pos[i];
@@ -559,14 +581,6 @@ void Robot::main_executor()
         check_task();
         if (_STATE != 4)
             action_decoder();
-        // _ctr++;
-        // if (!_ctr)
-        // {
-        // }
-        // else
-        // {
-        //     _STATE = 0;
-        // }
         break;
     case 1:
         proceed = _loc.forward(_dist, _error);
@@ -578,7 +592,6 @@ void Robot::main_executor()
         break;
     case 3:
         proceed = _loc.turn(_turn, 'R');
-        Serial.println(_turn);
         //      Serial.println("turning right");
         break;
     case 4:
@@ -591,8 +604,8 @@ void Robot::main_executor()
         if (_STATE == 2 || _STATE == 3)
         {
             // wait for 1000ms for the next update
-            _turn_timer = 2000;
             _prev_time = millis();
+            _turn_update = 0;
         }
         _STATE = 0;
     }
@@ -612,8 +625,10 @@ void Robot::action_decoder()
     int y = _route[_ptr][1] - pos[1];
     int ORI = pos[2];
     free(pos);
+    Serial.print("Current orientation: ");
+    Serial.println(ORI);
     _turn = 90;
-    if (millis() - _prev_time <= _turn_timer)
+    if (!_turn_update)
     {
         // if robot has just exit the turning state
         // hold for the synchronization from the camera
@@ -621,7 +636,7 @@ void Robot::action_decoder()
         _dist = 0;
         _turn = 0;
     }
-    else if (abs(ORI) <= 5)
+    else if (abs(ORI) <= 2)
     {
         if (y >= 200)
         {
@@ -646,7 +661,7 @@ void Robot::action_decoder()
             }
         }
     }
-    else if (abs(ORI) >= 175)
+    else if (abs(ORI) >= 178)
     {
         if (y >= 1)
         {
@@ -671,7 +686,7 @@ void Robot::action_decoder()
             }
         }
     }
-    else if (ORI >= 85 && ORI <= 95)
+    else if (ORI >= 88 && ORI <= 92)
     {
         if (x >= 1)
         {
@@ -696,7 +711,7 @@ void Robot::action_decoder()
             }
         }
     }
-    else if (ORI >= -95 && ORI <= -85)
+    else if (ORI >= -92 && ORI <= -88)
     {
         if (x >= 200)
         {
@@ -740,17 +755,17 @@ void Robot::action_decoder()
 void Robot::check_task()
 {
     int *pos = get_pos();
-    Serial.print(_route[_ptr][0]);
-    Serial.print("  ");
-    Serial.println(_route[_ptr][1]);
-
     if (abs(pos[0] - _route[_ptr][0]) <= 300 && abs(pos[1] - _route[_ptr][1]) <= 300)
     {
         Serial.println("arrived at a dst");
+        Serial.print("Current pointer: "); Serial.println(_ptr);
+        Serial.print("Total pointer:   "); Serial.println(_task_size);
+        Serial.println();
         if (_ptr + 1 == _task_size)
         {
             //  robot arriving at the final destination
             _STATE = 4;
+            Serial.println("Proceeding to free the memory");
             for (int i = 0; i < _task_size; i++)
                 free(_route[i]);
             free(_route);
@@ -759,6 +774,7 @@ void Robot::check_task()
             _turn = 0;
             _dist = 0;
             _error = 0;
+            Serial.println("All assets freed");
         }
         else
         {
@@ -868,32 +884,6 @@ void loop()
 {
     if (robot.get_state() != -1)
         robot.main_executor();
+    if (robot.get_state() == 4)
+        udp.broadcast("Arrived");
 }
-
-
-// Integrate the code below into the int turning() in testPID.ino
-
-// int turning(int deg, char dir)
-// {
-//     int num1 = (dir == 'L') ? 1 : 0;
-//     int num2 = !num1;
-//     int tick = _motor1.get_tick();
-//     if (tick < _PULSE * deg)
-//     {
-//         // calculate the error in angle
-//         int error = _PULSE * deg - tick;
-//         int gap = error * 0.1;
-//         _motor1.motor_move(100 + gap, num1);
-//         _motor2.motor_move(100 + gap, num2);
-//         return 0;
-//     }
-//     else
-//     {
-//         // calculate the current angle
-//         for (int i = 0; i < 2; i++)
-//         {
-//             _motors[i].motor_stop();
-//             _prev_tick[i] = 0;
-//         }
-//     }
-// }
