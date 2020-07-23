@@ -8,6 +8,9 @@
 #define IR4 36
 #define IR5 39
 
+int ctr = 0;
+int num = 0;
+
 void setup() {
   // put your setup code here, to run once:
   pinMode( PWMB, OUTPUT);
@@ -33,8 +36,7 @@ void loop() {
   digitalWrite(23, LOW);
   delay(20);
   digitalWrite(23, HIGH);
-  delay(1);
-
+  delay(10);
   int reading1 = analogRead(IR1);
   int reading2 = analogRead(IR2);
   int reading3 = analogRead(IR3);
@@ -51,5 +53,7 @@ void loop() {
   Serial.print("Reading5: ");
   Serial.println(reading5);
   Serial.println();
+//  if (reading2 > 2000 || reading3 > 2000 || reading4 > 2000)
+//    Serial.println("obstacle ahead");
   
 }
