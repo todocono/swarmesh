@@ -36,23 +36,14 @@ void setup()
 void loop()
 {
   // put your main code here, to run repeatedly:
-  int current = millis();
-  if (STATE && current - prev_time > 1)
-  {
-    prev_time = millis();
-    digitalWrite(23, LOW);
-  }
-  else if (!STATE && current - prev_time > 20)
-  {
-    prev_time = millis();
-    digitalWrite(23, HIGH);
-  }
+  digitalWrite(23, HIGH);
   int reading1 = analogRead(IR1);
   int reading2 = analogRead(IR2);
   int reading3 = analogRead(IR3);
   int reading4 = analogRead(IR4);
   int reading5 = analogRead(IR5);
-  if (reading1 || reading2 || reading3 || reading4 || reading5)
+  digitalWrite(23, LOW);
+  if (reading1 > 1000 || reading2 > 1000 || reading3 > 1000 || reading4 > 1000 || reading5 > 1000)
   {
     Serial.print("Reading1: ");
     Serial.println(reading1);
@@ -65,6 +56,6 @@ void loop()
     Serial.print("Reading5: ");
     Serial.println(reading5);
     Serial.println();
-    delay(100);
+    // delay(100);
   }
 }
