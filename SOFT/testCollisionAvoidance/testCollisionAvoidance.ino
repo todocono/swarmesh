@@ -665,7 +665,7 @@ private:
     int _communication_init;
     int _communication_timer;
     int _collision_com_state;
-    int *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
+    int *_pos;
     int _dst[2];
     int **_route;
     char _direction;
@@ -683,8 +683,11 @@ public:
     int check_collision();
     int get_communication_init();
     int get_communication_timer();
-    int process_route(int *pos, int *route);
+    int collision_distance_calculator(int *pos, int *coordinate, char *direction);
+    int verify_collision_coordinate(int *pos, int *route, int *coordinate, char *direction);
     int *get_pos();
+    int *process_route(int *pos, int *route);
+    int *collision_action(int *pos, int *coordinate, char *direction);
     int **get_route();
     void robot_init();
     void calc_error();
@@ -698,8 +701,10 @@ public:
     void update_abs(int *pos);
     void update_state(int state);
     void update_communication_init();
+    void trajectory_calculator(char *axis, int *value, int *pos, int *route);
+    void collision_coordinate_calculator(char *direction1, char *direction2, int value1, int value2, int *coordinate);
     char *collision_msg_init();
-    char *collision_msg_reply(char *id);
+    char *collision_msg_reply(char *id, int action);
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2),
@@ -736,11 +741,110 @@ int Robot::get_error()
     return _error;
 }
 
-int Robot::process_route(int *pos, int *route)
+int *Robot::collision_action(int *pos, int *coordinate, char *direction)
+{
+    int self_distance, other_distance;
+    self_distance = collision_distance_calculator(_pos, coordinate, _direction);
+    other_distance = collision_distance_calculator(pos, coordinate, direction);
+    int *action = (int *)malloc(sizeof(int) * 2);
+    if (self_distance < other_distance)
+    {
+        action[0] = 1;
+        action[1] = 0;
+    }
+    else
+    {
+        action[0] = 0;
+        action[1] = 1;
+    }
+    return action;
+}
+
+int Robot::collision_distance_calculator(int *pos, int *coordinate, char *direction)
+{
+    int distance, gap1, gap2;
+    gap1 = coordinate[0] - _pos[0];
+    gap2 = coordinate[1] - _pos[1];
+    int *action = (int *)malloc(sizeof(int) * 2);
+    for (int i = 0; i < 2; i++)
+        action[i] = 1;
+    switch (_direction)
+    {
+    case 'N':
+        distance = -gap2;
+    case 'S':
+        distance = gap2;
+    case 'W':
+        distance = -gap1;
+    case 'E':
+        distance = gap1;
+    }
+    return distance;
+}
+
+int Robot::verify_collision_coordinate(int *pos, int *route, int *coordinate, char *direction)
+{
+    x_diff = coordinate[0] - pos[0];
+    y_diff = coordinate[1] - pos[1];
+    switch (direction)
+    {
+    case 'N':
+        if (-y_diff <= 3000 && coordinate[1] > route[1])
+            return 1;
+        else
+            return 0;
+    case 'S':
+        if (y_diff <= 3000 && coordinate[1] < route[1])
+            return 1;
+        else
+            return 0;
+    case 'W':
+        if (-x_diff <= 3000 && coordinate[0] > route[0])
+            return 1;
+        else
+            return 0;
+    case 'E':
+        if (x_diff <= 3000 && coordinate[0] < route[0])
+            return 1;
+        else
+            return 0;
+    }
+}
+
+int *Robot::process_route(int *pos, int *route)
 {
     // compare the other robot's route with its own route and see whether the routes have conflicts
     // return 1 if the routes have conflicts
     // return 0 otherwise
+    char direction1, direction2;
+    int value1, value2;
+    int *coordinate = (int *)malloc(sizeof(int) * 2);
+    for (int i = 0; i < 2; i++)
+        coordinate[i] = -1;
+    trajectory_calculator(&direction1, &value1, _pos, _route[_ptr]);
+    trajectory_calculator(&direction2, &value2, pos, route);
+    // two robots are parallel to each other
+    if (direction1 == 'N' || direction1 == 'S')
+    {
+        if (direction2 == 'N' || direction2 == 'S')
+            return coordinate;
+    }
+    else
+    {
+        if (direction2 == 'W' || direction2 == 'E')
+            return coordinate;
+    }
+    coordinate = collision_coordinate_calculator(&direction1, &direction2, value1, value2, coordinate);
+    if (verify_collision_coordinate(_pos, _route[_ptr], coordinate, direction1) && verify_collision_coordinate(pos, route, coordinate, direction2))
+    {
+        return coordinate;
+    }
+    else
+    {
+        for (int i = 0; i < 2; i++)
+            coordinate[i] = -1;
+        return coordinate;
+    }
 }
 
 int *Robot::get_pos()
@@ -884,6 +988,36 @@ void Robot::update_state(int state)
     _STATE = state;
 }
 
+void Robot::trajectory_calculator(char *direction, int *value, int *pos, int *route)
+{
+    // assuming the robot is completely on track
+    if (!(pos[0] - route[0]))
+    {
+        if (route[1] - pos[1] > 0)
+            direction = 'S';
+        else
+            direction = 'N';
+        value = route[0];
+    }
+    else
+    {
+        if (route[0] - pos[0] > 0)
+            direction = 'E';
+        else
+            direction = 'W';
+        value = route[1];
+    }
+}
+
+void Robot::collision_coordinate_calculator(char *direction1, char *direction2, int value1, int value2, int *coordinate)
+{
+
+    if (direction1 == 'S' || direction1 == 'N')
+        coordinate = [ value1, value2 ];
+    else
+        coordinate = [ value2, value1 ];
+}
+
 void Robot::update_abs(int *pos)
 {
     // calculate the difference between the estimate and the actual
@@ -948,8 +1082,10 @@ int Robot::check_collision()
             break;
         case 2:
             // vehicle on the left
-            srand((unsigned)time(0));
-            _collision_timer = rand(300);
+            // no communication needed
+            // either parallel to each other or the other robot would initiate communication
+            // srand((unsigned)time(0));
+            // _collision_timer = rand(300);
             return 1;
             break;
         case 3:
@@ -1183,10 +1319,10 @@ char *Robot::collision_msg_init()
     return _communication.collision_init(_route[_ptr], get_pos(), get_id());
 }
 
-char *Robot::collision_msg_reply(char *id)
+char *Robot::collision_msg_reply(char *id, int action)
 {
     // here determine the action to take in face of the collision
-    return _communication.collision_reply(get_pos(), 1, id);
+    return _communication.collision_reply(get_pos(), action, id);
 }
 
 // void loop()
@@ -1279,32 +1415,43 @@ void setup()
                     pos[i] = jInfo["pos"][i];
                     route[i] = jInfo["route"][i];
                 }
-                if (robot.process_route(pos, route))
+                int *coordinate = robot.process_route(pos, route);
+                // collision avoidance only if the coordinate is between the current position and the next destination of the robots
+                if (coordinate[0])
                 {
-                    char *msg = collision_msg_reply(jInfo["ID"]);
+                    int value;
+                    char direction;
+                    robot.trajectory_calculator(&direction, &value, pos, route);
+                    int *action = robot.collision_action(pos, coordinate, direction);
+                    char *msg = collision_msg_reply(jInfo["ID"], action[1]);
                     udp.writeTo((const uint8_t *)msg, strlen(msg), IPAddress(224, 3, 29, 1), 10001);
                     free(msg);
+                    free(coordinate);
                 }
             }
             case 5:
             {
-                
-            }
-        });
-    }
-}
+                if (jInfo["ID"] == robot.get_id())
+                {
+                    int action = jInfo["action"];
 
-void loop()
-{
-    if (robot.check_collision())
-    {
-        if (millis() - robot.get_communication_init() > robot.get_communication_timer())
-        {
-            char *jsonStr = robot.collision_msg_init();
-            udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
-            free(jsonStr);
-        }
+                }
+            }
+            });
     }
-    if (robot.get_state() != -1)
-        robot.main_executor();
-}
+    }
+
+    void loop()
+    {
+        if (robot.check_collision())
+        {
+            if (millis() - robot.get_communication_init() > robot.get_communication_timer())
+            {
+                char *jsonStr = robot.collision_msg_init();
+                udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+                free(jsonStr);
+            }
+        }
+        if (robot.get_state() != -1)
+            robot.main_executor();
+    }
