@@ -55,18 +55,18 @@ void setup()
   pinMode(PWMA, OUTPUT);
   pinMode(encoder1.PIN, INPUT_PULLUP);
   pinMode(encoder2.PIN, INPUT_PULLUP);
-  attachInterrupt(encoder1.PIN, isr, FALLING);
-  attachInterrupt(encoder2.PIN, isr2, FALLING);
-  ledcAttachPin(PWMA, 1); // assign RGB led pins to channels
-  ledcAttachPin(PWMB, 2);
-  ledcSetup(1, 12000, 8); // 12 kHz PWM, 8-bit resolution
-  ledcSetup(2, 12000, 8);
-  adcAttachPin(MUXI);
-  analogSetWidth(12);
-  analogSetPinAttenuation(34, ADC_11db);
-  Serial.begin(115200);
-  encoder1.numberTicks = 0;
-  encoder2.numberTicks = 0;
+//  attachInterrupt(encoder1.PIN, isr, FALLING);
+//  attachInterrupt(encoder2.PIN, isr2, FALLING);
+////  ledcAttachPin(PWMA, 1); // assign RGB led pins to channels
+//  ledcAttachPin(PWMB, 2);
+//  ledcSetup(1, 12000, 8); // 12 kHz PWM, 8-bit resolution
+//  ledcSetup(2, 12000, 8);
+//  adcAttachPin(MUXI);
+//  analogSetWidth(12);
+//  analogSetPinAttenuation(34, ADC_11db);
+//  Serial.begin(115200);
+//  encoder1.numberTicks = 0;
+//  encoder2.numberTicks = 0;
   //  WiFi.mode(WIFI_STA);
   //    WiFi.begin(ssid, password);
   //    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
@@ -90,9 +90,16 @@ void setup()
 void loop()
 {
   //  forward(1000);
-  if (state == 1) {
-    turnLeft(360);
-  }
+  digitalWrite(PWMA, HIGH);
+  digitalWrite(PWMB, HIGH);
+  digitalWrite(DIRA, LOW);
+  digitalWrite(DIRB, LOW);
+delay(2000);
+    digitalWrite(PWMA, LOW);
+  digitalWrite(PWMB, LOW);
+  digitalWrite(DIRA, HIGH);
+  digitalWrite(DIRB, HIGH);
+  delay(2000);
   // put your main code here, to run repeatedly:
   // use state machine
   // state 1
