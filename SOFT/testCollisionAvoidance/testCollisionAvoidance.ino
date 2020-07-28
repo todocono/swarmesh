@@ -132,21 +132,6 @@ PID::PID()
 int PID::pid_compute(int error)
 {
     Output = kp * error; // + ki * errSum + kd * dErr;
-    // unsigned long now = millis();
-    // int timeChange = (now - lastTime);
-    // if (timeChange >= SampleTime)
-    // {
-    //     /*Compute all the working error variables*/
-    //     errSum += error;
-    //     double dErr = (error - lastErr);
-
-    //     /*Compute PID Output*/
-    //     Output = kp * error + ki * errSum + kd * dErr;
-
-    //     /*Remember some variables for next time*/
-    //     lastErr = error;
-    //     lastTime = now;
-    // }
     return Output;
 }
 
@@ -430,17 +415,18 @@ class Collision
 private:
     Emitter _emitter;
     Receiver _receivers[5];
-    int _receiver_state[5];
     int _receiver_readings[5];
     int _collision_coordinates[2];
     int _collision_start_time;
     int _collision_hold_timer;
     int _collision_action;
     int _collision_state;
+    char _collision_peer;
 
 public:
     Collision(int pin_em);
     int *get_reading();
+    int *get_collision_coordinates();
     int get_collision_state();
     int get_collision_action();
     int decode_readings(int idx);
@@ -454,12 +440,13 @@ public:
     void update_collision_state(int num);
     void update_collision_action(int action);
     void update_collision_hold_timer(int num);
+    void update_collision_coordinates(int *coordinates);
 };
 
 Collision::Collision(int pin_em) : _emitter(23),
                                    _receivers{{32, 0}, {33, 1}, {34, 2}, {36, 3}, {39, 4}}
 {
-
+    _collision_action = 1;
     for (int i = 0; i < 5; i++)
         _receiver_readings[i] = 0;
 }
@@ -467,6 +454,11 @@ Collision::Collision(int pin_em) : _emitter(23),
 int *Collision::get_reading()
 {
     return _receiver_readings;
+}
+
+int *Collision::get_collision_coordinates()
+{
+    return _collision_coordinates;
 }
 
 int Collision::get_collision_action()
@@ -484,6 +476,12 @@ int Collision::decode_readings(int idx)
     if (_receiver_readings[idx] >= 3500)
         return 1;
     return 0;
+}
+
+void Collision::update_collision_coordinates(int *coordinates)
+{
+    for (int i = 0; i < 2; i++)
+        _collision_coordinates[i] = coordinates[i];
 }
 
 void Collision::update_collision_action(int action)
@@ -509,10 +507,7 @@ void Collision::collision_avoidance_init()
 {
     analogSetWidth(12);
     for (int i = 0; i < 5; i++)
-    {
         _receivers[i].receiver_init();
-        _receiver_state[i] = 0;
-    }
     _emitter.emitter_init();
 }
 
@@ -555,8 +550,6 @@ int Collision::collision_avoidance_main()
         {
             update_collision_state(0);
             update_collision_hold_timer(0);
-            for (int i = 0; i < 5; i++)
-                _receiver_state[i] = 0;
         }
     }
     return _collision_state;
@@ -583,8 +576,9 @@ public:
     void wifi_init();
     // char *json_creator(int *POS);
     // void udp_init(Destinations dst, const char *ID, int *POS, int *ORI, DynamicJsonDocument &jInfo);
-    void collision_com_init(char *str, int *route, int *pos, char *id);
-    void collision_com_reply(char *str, int *pos, int action, char id);
+    void collision_com_init(char *str, int *route, int *pos, char id);
+    void collision_com_reply(char *str, int action, int *coordinates, char id);
+    void collision_com_fin(char *str, char id, int *coordinates);
 };
 
 Communication::Communication(char *ssid, char *password)
@@ -608,14 +602,14 @@ void Communication::wifi_init()
     }
 }
 
-void Communication::collision_com_init(char *str, int *route, int *pos, char *id)
+void Communication::collision_com_init(char *str, int *route, int *pos, char id)
 {
     // char *jsonStr = (char *)malloc(sizeof(char) * 80);
     char jsonStr[80];
     const size_t capacity = 2 * JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(4);
     DynamicJsonDocument doc(1024);
     doc["Purpose"] = 4;
-    doc["ID"] = 5;
+    doc["ID"] = id;
     JsonArray now_route = doc.createNestedArray("route");
     JsonArray now_pos = doc.createNestedArray("pos");
     for (int i = 0; i < 2; i++)
@@ -630,17 +624,35 @@ void Communication::collision_com_init(char *str, int *route, int *pos, char *id
         str[i] = jsonStr[i];
 }
 
-void Communication::collision_com_reply(char *str, int *pos, int action, char id)
+void Communication::collision_com_reply(char *str, int action, int *coordinates, char id)
 {
     char jsonStr[80];
     DynamicJsonDocument doc(1024);
     doc["Purpose"] = 5;
     doc["action"] = action;
     doc["ID"] = id;
+    JsonArray collision_coord = doc.createNestedArray("coordinates");
+    for (int i = 0; i < 2; i++)
+        // directly refer to the coordinates variable in this class
+        collision_coord.add(coordinates[i]);
     serializeJson(doc, jsonStr);
     doc.clear();
-    free(pos);
-    for (int i = 0; i < 80; i ++)
+    for (int i = 0; i < 80; i++)
+        str[i] = jsonStr[i];
+}
+
+void Communication::collision_com_fin(char *str, char id, int *coordinates)
+{
+    char jsonStr[80];
+    DynamicJsonDocument doc(1024);
+    doc["Purpose"] = 6;
+    doc["ID"] = id;
+    JsonArray collision_coord = doc.createNestedArray("coordinates");
+    for (int i = 0; i < 2; i++)
+        collision_coord.add(coordinates[i]);
+    serializeJson(doc, jsonStr);
+    doc.clear();
+    for (int i = 0; i < 80; i++)
         str[i] = jsonStr[i];
 }
 
@@ -665,14 +677,14 @@ private:
     int _dst[2];
     int **_route;
     char _direction;
-    char *_ID;
+    char _ID;
     Locomotion _loc;
     Collision _collision;
     Communication _communication;
 
 public:
     Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password);
-    char *get_id();
+    char get_id();
     int get_size();
     int get_state();
     int get_error();
@@ -680,12 +692,14 @@ public:
     int get_collision_state();
     int get_collision_com_state();
     int get_collision_com_timer();
+    int passed_collision_coordinates();
     int get_collision_com_start_time();
     int collision_distance_calculator(int *pos, int *coordinate, char *direction);
     int verify_collision_coordinate(int *pos, int *route, int *coordinate, char *direction);
     int *get_pos();
+    int *get_collision_coordinates();
     int *process_route(int *pos, int *route);
-    int *collision_action(int *pos, int *coordinate, char *direction);
+    int *collision_action_calculator(int *pos, int *coordinate, char *direction);
     int **get_route();
     void robot_init();
     void calc_error();
@@ -699,12 +713,15 @@ public:
     void update_abs(int *pos);
     void update_state(int state);
     void update_collision_com_start_time();
+    void update_collision_action(int action);
     void update_collision_com_timer(int time);
     void update_collision_com_state(int state);
+    void update_collision_coordinates(int *coordinates);
     void trajectory_calculator(char *axis, int *value, int *pos, int *route);
     void collision_coordinate_calculator(char *direction1, char *direction2, int value1, int value2, int *coordinate);
-    void collision_com_init(char *jsonStr);
+    void collision_com_fin(char *jsonStr);
     void collision_com_reply(char *jsonStr, char id, int action);
+    void collision_com_init(char *jsonStr);
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password) : _loc(encoder1, encoder2),
@@ -720,6 +737,37 @@ Robot::Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password) :
     _turn_timer = 800;
     _collision_com_state = 0;
     _pos = _loc.pos;
+    _ID = '7';
+}
+
+int Robot::passed_collision_coordinates()
+{
+    // self is in collision communication and is in commanded to go
+    if (get_collision_com_state() == 2 && _collision.get_collision_action())
+    {
+        int *pos = get_pos();
+        int *coordinates = _collision.get_collision_coordinates();
+        switch (_direction)
+        {
+        case 'N':
+            if (coordinates[1] > pos[1])
+                return 1;
+            break;
+        case 'S':
+            if (coordinates[1] < pos[1])
+                return 1;
+            break;
+        case 'W':
+            if (coordinates[0] > pos[0])
+                return 1;
+            break;
+        case 'E':
+            if (coordinates[0] < pos[0])
+                return 1;
+            break;
+        }
+        return 0;
+    }
 }
 
 int Robot::get_collision_com_state()
@@ -742,9 +790,19 @@ int Robot::get_collision_state()
     return _collision.get_collision_state();
 }
 
+int *Robot::get_collision_coordinates()
+{
+    return _collision.get_collision_coordinates();
+}
+
 void Robot::update_collision_com_start_time()
 {
     _collision_com_start_time = millis();
+}
+
+void Robot::update_collision_coordinates(int *action)
+{
+    _collision.update_collision_coordinates(action);
 }
 
 int Robot::get_error()
@@ -752,7 +810,7 @@ int Robot::get_error()
     return _error;
 }
 
-int *Robot::collision_action(int *pos, int *coordinate, char *direction)
+int *Robot::collision_action_calculator(int *pos, int *coordinate, char *direction)
 {
     int self_distance, other_distance;
     self_distance = collision_distance_calculator(_pos, coordinate, &_direction);
@@ -876,7 +934,7 @@ int *Robot::get_pos()
     return ptr;
 }
 
-char *Robot::get_id()
+char Robot::get_id()
 {
     return _ID;
 }
@@ -998,6 +1056,11 @@ void Robot::update_state(int state)
 void Robot::update_collision_com_state(int state)
 {
     _collision_com_state = state;
+}
+
+void Robot::update_collision_action(int action)
+{
+    _collision.update_collision_action(action);
 }
 
 void Robot::trajectory_calculator(char *direction, int *value, int *pos, int *route)
@@ -1174,12 +1237,6 @@ void Robot::main_executor()
     }
 }
 
-/*
-  same as the previous action decoder
-  take in the upcoming destination in _route
-  output the necessary action to get to the destination
-*/
-
 void Robot::action_decoder()
 {
     int *pos = get_pos();
@@ -1353,13 +1410,18 @@ void Robot::collision_com_init(char *jsonStr)
     update_collision_com_state(1);
     // char *state;
     // return state;
-    _communication.collision_com_init(jsonStr, _route[_ptr], get_pos(), get_id());
+    _communication.collision_com_init(jsonStr, _route[_ptr], _pos, get_id());
 }
 
 void Robot::collision_com_reply(char *jsonStr, char id, int action)
 {
     // here determine the action to take in face of the collision
-    _communication.collision_com_reply(jsonStr, get_pos(), action, id);
+    _communication.collision_com_reply(jsonStr, action, get_collision_coordinates(), id);
+}
+
+void Robot::collision_com_fin(char *jsonStr)
+{
+    _communication.collision_com_fin(jsonStr, get_id(), get_collision_coordinates());
 }
 
 char *ssid = "nowifi";
@@ -1437,44 +1499,57 @@ void setup()
                         pos[i] = jInfo["pos"][i];
                         route[i] = jInfo["route"][i];
                     }
-                    int *coordinate = robot.process_route(pos, route);
+                    int *coordinates = robot.process_route(pos, route);
                     Serial.print("Collision coordinates: ");
-                    Serial.print(coordinate[0]);
+                    Serial.print(coordinates[0]);
                     Serial.print(" ");
-                    Serial.println(coordinate[1]);
+                    Serial.println(coordinates[1]);
                     // collision avoidance only if the coordinate is between the current position and the next destination of the robots
-                    if (coordinate[0])
+                    if (coordinates[0])
                     {
-                        // there is already a communication between the two robots
-                        // robot.update_collision_com_state(2);
-                        // there is a possible collision
-                        // com state makes sure no ir readings would be taken into account
+                        // this is a valid collision coordinates
                         int value;
-                        char direction;
-                        robot.trajectory_calculator(&direction, &value, pos, route);
-                        int *action = robot.collision_action(pos, coordinate, &direction);
                         char msg[80];
-
-                        // DynamicJsonDocument doc(1024);
-                        // doc["Purpose"] = 5;
-                        // doc["action"] = action[1];
-                        // doc["ID"] = 7;
-                        // serializeJson(doc, jsonStr);
-                        // doc.clear();
+                        char direction;
+                        robot.update_collision_com_state(2);
+                        robot.update_collision_coordinates(coordinates);
+                        robot.trajectory_calculator(&direction, &value, pos, route);
+                        int *action = robot.collision_action_calculator(pos, coordinates, &direction);
                         robot.collision_com_reply(msg, ID, action[1]);
                         udp.writeTo((const uint8_t *)msg, strlen(msg), IPAddress(224, 3, 29, 1), 10001);
-                        free(coordinate);
+                        free(coordinates);
                         free(action);
                     }
                 }
                 robot.update_state(0);
+                break;
             }
             case 5:
             {
-                if (jInfo["ID"] == robot.get_id())
-                {
-                    int action = jInfo["action"];
-                }
+                int coordinates[2];
+                char ID = jInfo["ID"];
+                int action = jInfo["action"];
+                for (int i = 0; i < 2; i++)
+                    coordinates[i] = jInfo["coordinates"][i];
+                if (ID != robot.get_id())
+                    break;
+                robot.update_collision_com_state(2);
+                robot.update_collision_action(action);
+                robot.update_collision_coordinates(coordinates);
+                break;
+            }
+            case 6:
+            {
+                int coordinates[2];
+                char ID = jInfo["ID"];
+                int *self_coordinates = robot.get_collision_coordinates();
+                if (ID != robot.get_id())
+                    break;
+                for (int i = 0; i < 2; i++)
+                    coordinates[i] = jInfo["coordinates"][i];
+                if (coordinates[0] == self_coordinates[0] && coordinates[1] == self_coordinates[1])
+                    robot.update_collision_action(1);
+                break;
             }
             }
         });
@@ -1492,4 +1567,11 @@ void loop()
     }
     // if (robot.get_state() != -1)
     //     robot.main_executor();
+    if (robot.passed_collision_coordinates())
+    {
+        // send out a message to let the other robot go
+        char jsonStr[80];
+        robot.collision_com_fin(jsonStr);
+        udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+    }
 }
