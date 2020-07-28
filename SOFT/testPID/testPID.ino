@@ -30,23 +30,23 @@ void IRAM_ATTR isr2()
 
 class Motor
 {
-  private:
-    Encoder *_encoder;
-    int _PWM;
-    int _DIR;
-    int _IDX;
-    uint8_t _PIN;
+private:
+  Encoder *_encoder;
+  int _PWM;
+  int _DIR;
+  int _IDX;
+  uint8_t _PIN;
 
-  public:
-    Motor(Encoder *encoder, int PWM, int DIR, int IDX);
-    void motor_move(int spd, int dir);
-    void motor_stop();
-    void reset_encoder();
-    const int get_idx();
-    const int get_pwm();
-    const int get_dir();
-    const int get_tick();
-    const uint8_t get_pin();
+public:
+  Motor(Encoder *encoder, int PWM, int DIR, int IDX);
+  void motor_move(int spd, int dir);
+  void motor_stop();
+  void reset_encoder();
+  const int get_idx();
+  const int get_pwm();
+  const int get_dir();
+  const int get_tick();
+  const uint8_t get_pin();
 };
 
 Motor::Motor(Encoder *encoder, int PWM, int DIR, int IDX)
@@ -110,22 +110,22 @@ const uint8_t Motor::get_pin()
 
 class PID
 {
-  private:
-    unsigned long lastTime;
-    double Input, Output, Setpoint;
-    double errSum, lastErr;
-    double kp, ki, kd;
-    int SampleTime;
+private:
+  unsigned long lastTime;
+  double Input, Output, Setpoint;
+  double errSum, lastErr;
+  double kp, ki, kd;
+  int SampleTime;
 
-  public:
-    PID();
-    int pid_compute(int error);
-    void pid_tuning(double Kp, double Ki, double Kd);
+public:
+  PID();
+  int pid_compute(int error);
+  void pid_tuning(double Kp, double Ki, double Kd);
 };
 
 PID::PID()
 {
-  kp = 0.015;
+  kp = 0.01;
   ki = 0.0;
   kd = 0.0;
   errSum = 0;
@@ -164,31 +164,31 @@ void PID::pid_tuning(double Kp, double Ki, double Kd)
 
 class Locomotion
 {
-  private:
-    PID _pid;
-    Motor _motor1;
-    Motor _motor2;
-    Motor *_motors;
-    float _PULSE;
-    int _width;
-    int _off_course;
-    int _prev_tick[2];
-    int _calc_ori(int ori);
-    int _calc_error(int *pos, const char *traj);
-    int _tick_cvt(int dist);
+private:
+  PID _pid;
+  Motor _motor1;
+  Motor _motor2;
+  Motor *_motors;
+  float _PULSE;
+  int _width;
+  int _off_course;
+  int _prev_tick[2];
+  int _calc_ori(int ori);
+  int _calc_error(int *pos, const char *traj);
+  int _tick_cvt(int dist);
 
-  public:
-    Locomotion(Encoder *encoder1, Encoder *encoder2);
-    int pos[3];
-    int forward(int dist, int error);
-    int turn(int deg, char dir);
-    void tune_pid(double kp);
-    void reset_encoders();
-    void motor_init();
+public:
+  Locomotion(Encoder *encoder1, Encoder *encoder2);
+  int pos[3];
+  int forward(int dist, int error);
+  int turn(int deg, char dir);
+  void tune_pid(double kp);
+  void reset_encoders();
+  void motor_init();
 };
 
 Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor2(encoder1, 27, 14, 1),
-  _motor1(encoder2, 12, 13, 2)
+                                                               _motor1(encoder2, 12, 13, 2)
 {
   _PULSE = 5.69;
   _off_course = 0;
@@ -202,13 +202,13 @@ void Locomotion::tune_pid(double kp)
 
 int Locomotion::_tick_cvt(int dist)
 {
-  return dist * (3 / 4.1);
+  return dist * (3 / 4.2);
 }
 
 int Locomotion::forward(int dist, int error)
 {
   dist = _tick_cvt(dist);
-  int spd = 220;
+  int spd = 150;
   _off_course = 0;
   if (abs(error) >= 100)
     _off_course = 1;
@@ -219,10 +219,10 @@ int Locomotion::forward(int dist, int error)
   if (tick1 < dist)
   {
     if ((dist - tick1) < 750)
-      spd = map(dist - tick1, 0, 750, 150, 220);
+      spd = map(dist - tick1, 0, 750, 100, 150);
     int gap = 0;
     if (!_off_course)
-      gap = -(tick1 - tick2) * 0.5;
+      gap = -(tick1 - tick2) * 0.05;
     else
       gap = _pid.pid_compute(error);
     _motor1.motor_move(spd - gap, 1);
@@ -259,8 +259,8 @@ int Locomotion::turn(int deg, char dir)
   if (tick <= _PULSE * deg)
   {
     int gap = 0.1 * (_PULSE * deg - tick);
-    _motor1.motor_move(120 + gap, num1);
-    _motor2.motor_move(120 + gap, num2);
+    _motor1.motor_move(130 + gap, num1);
+    _motor2.motor_move(130 + gap, num2);
     // int tick = _motor1.get_tick();
     // _prev_tick[0] = tick;
     return 0;
@@ -274,15 +274,15 @@ int Locomotion::turn(int deg, char dir)
     }
     switch (dir)
     {
-      case 'L':
-        pos[2] -= deg;
-        if (pos[2] < -180)
-          pos[2] += 360;
-        break;
-      case 'R':
-        pos[2] += deg;
-        if (pos[2] > 180)
-          pos[2] -= 360;
+    case 'L':
+      pos[2] -= deg;
+      if (pos[2] < -180)
+        pos[2] += 360;
+      break;
+    case 'R':
+      pos[2] += deg;
+      if (pos[2] > 180)
+        pos[2] -= 360;
     }
     return 1;
   }
@@ -295,7 +295,7 @@ void Locomotion::motor_init()
   _motors[1] = _motor2;
   for (int i = 0; i < 2; i++)
   {
-    pinMode(_motors[i].get_pwm(), OUTPUT);
+    pinMode(_motors[i].get_pwm (), OUTPUT);
     pinMode(_motors[i].get_dir(), OUTPUT);
     pinMode(_motors[i].get_pin(), INPUT_PULLUP);
     //    attachInterrupt(_motors[i].get_pin(), _motors[i].isr(), FALLING);
@@ -319,45 +319,45 @@ void Locomotion::reset_encoders()
 
 class Robot
 {
-  private:
-    int _ctr;
-    int _ptr;
-    int _turn;
-    int _dist;
-    int _error;
-    int _STATE;
-    int _width;
-    int _task_size;
-    int _off_course;
-    int _turn_timer;
-    int _turn_update;
-    int _prev_time;
-    int *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
-    int _dst[2];
-    int **_route;
-    char _direction;
-    const char *_ID = "2";
-    Locomotion _loc;
+private:
+  int _ctr;
+  int _ptr;
+  int _turn;
+  int _dist;
+  int _error;
+  int _STATE;
+  int _width;
+  int _task_size;
+  int _off_course;
+  int _turn_timer;
+  int _turn_update;
+  int _prev_time;
+  int *_pos; // this contains the current coordinate as well as the rotation of the robot [x, y, u]
+  int _dst[2];
+  int **_route;
+  char _direction;
+  const char *_ID = "2";
+  Locomotion _loc;
 
-  public:
-    Robot(Encoder *encoder1, Encoder *encoder2);
-    const char *get_id();
-    int get_size();
-    int get_state();
-    int get_error();
-    int *get_pos();
-    int **get_route();
-    void robot_init();
-    void calc_error();
-    void check_task();
-    void auto_route();
-    void update_est();
-    void main_executor();
-    void action_decoder();
-    void reroute(char dir);
-    void tune_pid(double kp);
-    void update_abs(int *pos);
-    void update_state(int state);
+public:
+  Robot(Encoder *encoder1, Encoder *encoder2);
+  const char *get_id();
+  int get_size();
+  int get_state();
+  int get_error();
+  int *get_pos();
+  int **get_route();
+  void robot_init();
+  void calc_error();
+  void check_task();
+  void auto_route();
+  void update_est();
+  void main_executor();
+  void action_decoder();
+  void reroute(char dir);
+  void tune_pid(double kp);
+  void update_abs(int *pos);
+  void update_state(int state);
 };
 
 Robot::Robot(Encoder *encoder1, Encoder *encoder2) : _loc(encoder1, encoder2)
@@ -414,18 +414,18 @@ void Robot::calc_error()
   float error2 = pos[1] - crt_task[1];
   switch (_direction)
   {
-    case 'N':
-      _error = error1;
-      break;
-    case 'S':
-      _error = -error1;
-      break;
-    case 'W':
-      _error = -error2;
-      break;
-    case 'E':
-      _error = error2;
-      break;
+  case 'N':
+    _error = error1;
+    break;
+  case 'S':
+    _error = -error1;
+    break;
+  case 'W':
+    _error = -error2;
+    break;
+  case 'E':
+    _error = error2;
+    break;
   }
   free(pos);
 }
@@ -460,7 +460,7 @@ void Robot::auto_route()
     tmp = 2;
   else
     tmp = 0;
-  if (x_distance && y_distance)
+  if (abs(x_distance) && abs(y_distance))
   {
     // when both x_distance and y_distance is greater than 0
     srand((unsigned)time(0));
@@ -526,9 +526,9 @@ void Robot::update_abs(int *pos)
   {
     _loc.reset_encoders();
     if (_direction == 'N' || _direction == 'S')
-      _dist = abs(_route[_ptr][1] - pos[1]) - 150;
+      _dist = abs(_route[_ptr][1] - pos[1]) - 100;
     else
-      _dist = abs(_route[_ptr][0] - pos[0]) - 150;
+      _dist = abs(_route[_ptr][0] - pos[0]) - 100;
     _dist = (_dist < 0) ? 0 : _dist;
   }
   if (_STATE != 2 && _STATE != 3 && (millis() - _prev_time) >= _turn_timer)
@@ -575,27 +575,27 @@ void Robot::main_executor()
   int proceed = 0;
   switch (_STATE)
   {
-    case 0:
-      check_task();
-      if (_STATE != 4)
-        action_decoder();
-      break;
-    case 1:
-      proceed = _loc.forward(_dist, _error);
-      //      Serial.println("Moving forward");
-      break;
-    case 2:
-      proceed = _loc.turn(_turn, 'L');
-      //      Serial.println("turning left");
-      break;
-    case 3:
-      proceed = _loc.turn(_turn, 'R');
-      //      Serial.println("turning right");
-      break;
-    case 4:
-      //      Serial.println("arrived");
+  case 0:
+    check_task();
+    if (_STATE != 4)
+      action_decoder();
+    break;
+  case 1:
+    proceed = _loc.forward(_dist, _error);
+    //      Serial.println("Moving forward");
+    break;
+  case 2:
+    proceed = _loc.turn(_turn, 'L');
+    //      Serial.println("turning left");
+    break;
+  case 3:
+    proceed = _loc.turn(_turn, 'R');
+    //      Serial.println("turning right");
+    break;
+  case 4:
+    //      Serial.println("arrived");
 
-      break;
+    break;
   }
   if (proceed)
   {
@@ -817,47 +817,47 @@ void setup()
       const int Purpose = jInfo["Purpose"];
       switch (Purpose)
       {
-        case 1:
-          {
-            const char *ID;
-            ID = "7";
-            if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
-              break;
-            int pos_n[3];
-            for (int i = 0; i < 2; i++)
-              pos_n[i] = jInfo[ID][0][i];
-            pos_n[2] = jInfo[ID][1];
-            robot.update_abs(pos_n);
-            if (robot.get_state() == 1)
-              robot.calc_error();
-            char jsonStr[80];
-            //              jsonCreator(jsonStr);
-            if (!ctr)
-            {
-              robot.update_state(0);
-              encoder1.numberTicks = 0;
-              encoder2.numberTicks = 0;
-              Serial.println("routing the robot");
-              robot.auto_route();
-              ctr++;
-            }
-            break;
-          }
-        case 2:
-          {
-            int pos_now[3] = {22500, 15000, -90};
-            robot.update_state(0);
-            robot.update_abs(pos_now);
-            robot.auto_route();
-            break;
-          }
-        case 3:
-          {
-            double kp = jInfo["PID"];
-            robot.tune_pid(kp);
-            udp.broadcast("PID tuned");
-            break;
-          }
+      case 1:
+      {
+        const char *ID;
+        ID = "7";
+        if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
+          break;
+        int pos_n[3];
+        for (int i = 0; i < 2; i++)
+          pos_n[i] = jInfo[ID][0][i];
+        pos_n[2] = jInfo[ID][1];
+        robot.update_abs(pos_n);
+        if (robot.get_state() == 1)
+          robot.calc_error();
+        char jsonStr[80];
+        //              jsonCreator(jsonStr);
+        if (!ctr)
+        {
+          robot.update_state(0);
+          encoder1.numberTicks = 0;
+          encoder2.numberTicks = 0;
+          Serial.println("routing the robot");
+          robot.auto_route();
+          ctr++;
+        }
+        break;
+      }
+      case 2:
+      {
+        int pos_now[3] = {22500, 15000, -90};
+        robot.update_state(0);
+        robot.update_abs(pos_now);
+        robot.auto_route();
+        break;
+      }
+      case 3:
+      {
+        double kp = jInfo["PID"];
+        robot.tune_pid(kp);
+        udp.broadcast("PID tuned");
+        break;
+      }
       }
     });
   }

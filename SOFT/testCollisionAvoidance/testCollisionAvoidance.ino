@@ -121,7 +121,7 @@ public:
 
 PID::PID()
 {
-    kp = 0.015;
+    kp = 0.01;
     ki = 0.0;
     kd = 0.0;
     errSum = 0;
@@ -183,14 +183,14 @@ void Locomotion::tune_pid(double kp)
 
 int Locomotion::_tick_cvt(int dist)
 {
-    return dist * (3 / 4.1);
+    return dist * (3 / 4.8);
 }
 
 int Locomotion::forward(int dist, int error)
 {
     dist = _tick_cvt(dist);
-    int spd = 220;
-    _off_course = 0;
+    int spd1 = 150;
+    int spd2 = 150;
     if (abs(error) >= 100)
         _off_course = 1;
     else
@@ -200,14 +200,17 @@ int Locomotion::forward(int dist, int error)
     if (tick1 < dist)
     {
         if ((dist - tick1) < 750)
-            spd = map(dist - tick1, 0, 750, 150, 220);
+        {
+            spd1 = map(dist - tick1, 0, 750, 100, 150);
+            spd2 = map(dist - tick1, 0, 750, 100, 155);
+        }
         int gap = 0;
         if (!_off_course)
-            gap = -(tick1 - tick2) * 0.5;
+            gap = -(tick1 - tick2) * 0.1;
         else
             gap = _pid.pid_compute(error);
-        _motor1.motor_move(spd - gap, 1);
-        _motor2.motor_move(spd + gap, 1);
+        _motor1.motor_move(spd1 - gap, 1);
+        _motor2.motor_move(spd2 + gap, 1);
         int tick1 = _motor1.get_tick();
         int ori = pos[2];
         if (abs(ori) <= 5)
@@ -240,8 +243,8 @@ int Locomotion::turn(int deg, char dir)
     if (tick <= _PULSE * deg)
     {
         int gap = 0.1 * (_PULSE * deg - tick);
-        _motor1.motor_move(120 + gap, num1);
-        _motor2.motor_move(120 + gap, num2);
+        _motor1.motor_move(130 + gap, num1);
+        _motor2.motor_move(130 + gap, num2);
         // int tick = _motor1.get_tick();
         // _prev_tick[0] = tick;
         return 0;
@@ -535,12 +538,14 @@ int Collision::collision_avoidance_main()
         if (decode_readings(2))
         {
             update_collision_state(1);
+            set_collision_start_time();
+            update_collision_hold_timer(5000);
         }
         else if (decode_readings(3) || decode_readings(4))
         {
             update_collision_state(3);
             set_collision_start_time();
-            update_collision_hold_timer(1000);
+            update_collision_hold_timer(2000);
         }
         else if (decode_readings(0) || decode_readings(1))
         {
@@ -688,7 +693,6 @@ public:
     int get_size();
     int get_state();
     int get_error();
-    int check_collision();
     int get_collision_state();
     int get_collision_com_state();
     int get_collision_com_timer();
@@ -701,14 +705,14 @@ public:
     int *process_route(int *pos, int *route);
     int *collision_action_calculator(int *pos, int *coordinate, char *direction);
     int **get_route();
+    void reroute();
     void robot_init();
     void calc_error();
     void check_task();
     void auto_route();
-    void update_est();
     void main_executor();
     void action_decoder();
-    void reroute(char dir);
+    void check_collision();
     void tune_pid(double kp);
     void update_abs(int *pos);
     void update_state(int state);
@@ -983,8 +987,8 @@ void Robot::auto_route()
 {
     int tmp;
     int dst[2];
-    dst[0] = 3000;
-    dst[1] = 3000;
+    dst[0] = 15000;
+    dst[1] = 15000;
     int x_distance = (dst[0] - _pos[0]) / 1500;
     int y_distance = (dst[1] - _pos[1]) / 1500;
 
@@ -1149,7 +1153,7 @@ int **Robot::get_route()
     return _route;
 }
 
-int Robot::check_collision()
+void Robot::check_collision()
 {
     // there is something in the view field of the robot
     // the robot is in forward state
@@ -1166,17 +1170,13 @@ int Robot::check_collision()
             // vehicle in front
             // still needs to confirm this
             // chances are the robot would run out of the arena
-            // reroute(_direction);
+            reroute();
             update_state(0);
             break;
         case 2:
             // vehicle on the left
             // no communication needed
             // either parallel to each other or the other robot would initiate communication
-
-            // srand((unsigned)time(0));
-            // _collision_timer = rand(300);
-            // return 1;
             break;
         case 3:
             // vehicle on the right
@@ -1185,11 +1185,9 @@ int Robot::check_collision()
             update_collision_com_start_time();
             Serial.print("Collision timer set: ");
             Serial.println(get_collision_com_timer());
-            return 1;
             break;
         }
     }
-    return 0;
 }
 
 void Robot::update_collision_com_timer(int time)
@@ -1255,7 +1253,7 @@ void Robot::action_decoder()
         _dist = 0;
         _turn = 0;
     }
-    else if (abs(ORI) <= 2)
+    else if (abs(ORI) <= 3)
     {
         if (y >= 200)
         {
@@ -1280,7 +1278,7 @@ void Robot::action_decoder()
             }
         }
     }
-    else if (abs(ORI) >= 178)
+    else if (abs(ORI) >= 177)
     {
         if (y >= 1)
         {
@@ -1305,7 +1303,7 @@ void Robot::action_decoder()
             }
         }
     }
-    else if (ORI >= 88 && ORI <= 92)
+    else if (ORI >= 87 && ORI <= 93)
     {
         if (x >= 1)
         {
@@ -1330,7 +1328,7 @@ void Robot::action_decoder()
             }
         }
     }
-    else if (ORI >= -92 && ORI <= -88)
+    else if (ORI >= -93 && ORI <= -87)
     {
         if (x >= 200)
         {
@@ -1405,6 +1403,76 @@ void Robot::check_task()
     free(pos);
 }
 
+void Robot::reroute()
+{
+    // _task_size = (_task_size - _ptr) + 3;
+    int **new_route = (int **)malloc(sizeof(int *) * ((_task_size - _ptr) + 3));
+    int new_ptr0[2], new_ptr1[2], new_ptr2[2];
+    for (int i = 0; i < ((_task_size - _ptr) + 3); i++)
+        new_route[i] = (int *)malloc(sizeof(int) * 2);
+    // adds the current position of the robot to the route list
+    for (int i = 0; i < 2; i++)
+        new_ptr0[i] = _pos[i];
+    switch (_direction)
+    {
+    case 'N':
+    {
+        new_ptr1[0] = _route[_ptr][0] - 1500;
+        new_ptr1[1] = _pos[1];
+        new_ptr2[0] = new_ptr1[0];
+        new_ptr2[1] = _route[_ptr][1];
+        break;
+    }
+    case 'S':
+    {
+        new_ptr1[0] = _route[_ptr][0] + 1500;
+        new_ptr1[1] = _pos[1];
+        new_ptr2[0] = new_ptr1[0];
+        new_ptr2[1] = _route[_ptr][1];
+        break;
+    }
+    case 'W':
+    {
+        new_ptr1[0] = _pos[0];
+        new_ptr1[1] = _route[_ptr][1] + 1500;
+        new_ptr2[0] = _route[_ptr][0];
+        new_ptr2[1] = new_ptr1[1];
+        break;
+    }
+    case 'E':
+    {
+        new_ptr1[0] = _pos[0];
+        new_ptr1[1] = _route[_ptr][1] - 1500;
+        new_ptr2[0] = _route[_ptr][0];
+        new_ptr2[1] = new_ptr1[1];
+        break;
+    }
+    }
+    for (int j = 0; j < 2; j++)
+    {
+        new_route[0][j] = new_ptr0[j];
+        new_route[1][j] = new_ptr1[j];
+        new_route[2][j] = new_ptr2[j];
+    }
+    for (int i = _ptr; i < (_task_size); i++)
+        for (int j = 0; j < 2; j++)
+            new_route[i - _ptr + 3][j] = _route[i][j];
+    for (int i = 0; i < _task_size; i++)
+        free(_route[i]);
+    free(_route);
+    _route = new_route;
+    _task_size = (_task_size - _ptr) + 3;
+    _ptr = 1;
+    Serial.println("New route");
+    for (int i = 0; i < _task_size; i++)
+    {
+        Serial.print(_route[i][0]);
+        Serial.print(" ");
+        Serial.println(_route[i][1]);
+    }
+    Serial.println("");
+}
+
 void Robot::collision_com_init(char *jsonStr)
 {
     update_collision_com_state(1);
@@ -1440,11 +1508,7 @@ void setup()
     WiFi.begin(ssid, password);
     Serial.begin(115200);
     // for testing purposes
-    robot.update_state(0);
-    int pos_n[3] = {3000, 0, 90};
-    robot.update_abs(pos_n);
-    robot.auto_route();
-
+    robot.update_state(-1);
     if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
         Serial.println("WiFi Failed");
@@ -1489,7 +1553,6 @@ void setup()
             }
             case 4:
             {
-                robot.update_state(1);
                 if (robot.get_state() == 1)
                 {
                     int pos[2], route[2];
@@ -1521,7 +1584,6 @@ void setup()
                         free(action);
                     }
                 }
-                robot.update_state(0);
                 break;
             }
             case 5:
@@ -1554,24 +1616,25 @@ void setup()
             }
         });
     }
+    Serial.println("Robot initialized");
 }
 
 void loop()
 {
     robot.check_collision();
-    if (robot.get_collision_state() == 3 && !robot.get_collision_com_state() && millis() - robot.get_collision_com_start_time() > robot.get_collision_com_timer())
-    {
-        char jsonStr[80];
-        robot.collision_com_init(jsonStr);
-        udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
-    }
-    // if (robot.get_state() != -1)
-    //     robot.main_executor();
-    if (robot.passed_collision_coordinates())
-    {
-        // send out a message to let the other robot go
-        char jsonStr[80];
-        robot.collision_com_fin(jsonStr);
-        udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
-    }
+    // if (robot.get_collision_state() == 3 && !robot.get_collision_com_state() && millis() - robot.get_collision_com_start_time() > robot.get_collision_com_timer())
+    // {
+    //     char jsonStr[80];
+    //     robot.collision_com_init(jsonStr);
+    //     udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+    // }
+    if (robot.get_state() != -1)
+        robot.main_executor();
+    // if (robot.passed_collision_coordinates())
+    // {
+    //     // send out a message to let the other robot go
+    //     char jsonStr[80];
+    //     robot.collision_com_fin(jsonStr);
+    //     udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+    // }
 }
