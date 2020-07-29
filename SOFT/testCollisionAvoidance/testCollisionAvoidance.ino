@@ -121,7 +121,7 @@ public:
 
 PID::PID()
 {
-    kp = 0.01;
+    kp = 0.002;
     ki = 0.0;
     kd = 0.0;
     errSum = 0;
@@ -191,7 +191,7 @@ int Locomotion::forward(int dist, int error)
     dist = _tick_cvt(dist);
     int spd1 = 150;
     int spd2 = 150;
-    if (abs(error) >= 100)
+    if (abs(error) >= 300)
         _off_course = 1;
     else
         _off_course = 0;
@@ -206,7 +206,7 @@ int Locomotion::forward(int dist, int error)
         }
         int gap = 0;
         if (!_off_course)
-            gap = -(tick1 - tick2) * 0.1;
+            gap = -(tick1 - tick2) * 0.5;
         else
             gap = _pid.pid_compute(error);
         _motor1.motor_move(spd1 - gap, 1);
@@ -243,8 +243,8 @@ int Locomotion::turn(int deg, char dir)
     if (tick <= _PULSE * deg)
     {
         int gap = 0.1 * (_PULSE * deg - tick);
-        _motor1.motor_move(130 + gap, num1);
-        _motor2.motor_move(130 + gap, num2);
+        _motor1.motor_move(110 + gap, num1);
+        _motor2.motor_move(110 + gap, num2);
         // int tick = _motor1.get_tick();
         // _prev_tick[0] = tick;
         return 0;
@@ -671,9 +671,11 @@ private:
     int _error;
     int _STATE;
     int _width;
-    int _prev_time;
+    int _prev_turn_time;
+    int _prev_forward_time;
     int _task_size;
     int _turn_timer;
+    int _forward_timer;
     int _turn_update;
     int _collision_com_state;
     int _collision_com_timer;
@@ -736,12 +738,13 @@ Robot::Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password) :
     _ptr = 1;
     _STATE = 0;
     _width = 8;
-    _prev_time = 0;
+    _prev_turn_time = 0;
+    _prev_forward_time = 0;
     _turn_update = 0;
-    _turn_timer = 800;
+    _turn_timer = 2000;
     _collision_com_state = 0;
     _pos = _loc.pos;
-    _ID = '7';
+    _ID = '0';
 }
 
 int Robot::passed_collision_coordinates()
@@ -989,17 +992,17 @@ void Robot::auto_route()
     int dst[2];
     dst[0] = 15000;
     dst[1] = 15000;
-    int x_distance = (dst[0] - _pos[0]) / 1500;
-    int y_distance = (dst[1] - _pos[1]) / 1500;
+    int x_distance = (dst[0] - _pos[0]) / 3000;
+    int y_distance = (dst[1] - _pos[1]) / 3000;
 
     // get the remainder of the division
-    int x_remainder = (dst[0] - _pos[0]) % 1500;
-    int y_remainder = (dst[1] - _pos[1]) % 1500;
+    int x_remainder = (dst[0] - _pos[0]) % 3000;
+    int y_remainder = (dst[1] - _pos[1]) % 3000;
     if (abs(x_remainder) > 50 && abs(y_remainder) > 50)
         tmp = 2;
     else
         tmp = 0;
-    if (x_distance && y_distance)
+    if (abs(x_distance) && abs(y_distance))
     {
         // when both x_distance and y_distance is greater than 0
         srand((unsigned)time(0));
@@ -1010,11 +1013,11 @@ void Robot::auto_route()
         for (int i = 0; i < _task_size; i++)
             _route[i] = (int *)malloc(sizeof(int) * 2);
         Serial.println("distance calculated");
-        _route[tmp + 0][0] = dst[0] - x_distance * 1500;
-        _route[tmp + 0][1] = dst[1] - y_distance * 1500;
-        _route[tmp + 1][0] = dst[0] - random_num * 1500;
-        _route[tmp + 1][1] = dst[1] - y_distance * 1500;
-        _route[tmp + 2][0] = dst[0] - random_num * 1500;
+        _route[tmp + 0][0] = dst[0] - x_distance * 3000;
+        _route[tmp + 0][1] = dst[1] - y_distance * 3000;
+        _route[tmp + 1][0] = dst[0] - random_num * 3000;
+        _route[tmp + 1][1] = dst[1] - y_distance * 3000;
+        _route[tmp + 2][0] = dst[0] - random_num * 3000;
         _route[tmp + 2][1] = dst[1];
         _route[tmp + 3][0] = dst[0];
         _route[tmp + 3][1] = dst[1];
@@ -1023,19 +1026,19 @@ void Robot::auto_route()
     {
         _task_size = tmp + 2;
         _route = (int **)malloc(sizeof(int *) * _task_size);
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < _task_size; i++)
             _route[i] = (int *)malloc(sizeof(int) * 2);
         for (int i = 0; i < 2; i++)
-            _route[tmp + 1][i] = dst[i];
-        if (x_distance)
+            _route[_task_size - 1][i] = dst[i];
+        if (abs(x_distance))
         {
-            _route[tmp][0] = dst[0] - x_distance * 1500;
+            _route[tmp][0] = dst[0] - x_distance * 3000;
             _route[tmp][1] = dst[1];
         }
         else
         {
             _route[tmp][0] = dst[0];
-            _route[tmp][1] = dst[1] - y_distance * 1500;
+            _route[tmp][1] = dst[1] - y_distance * 3000;
         }
     }
     if (tmp)
@@ -1108,6 +1111,7 @@ void Robot::update_abs(int *pos)
     // compensate for the difference using the _dist variable
     if (_STATE == 1)
     {
+
         _loc.reset_encoders();
         if (_direction == 'N' || _direction == 'S')
             _dist = abs(_route[_ptr][1] - pos[1]) - 150;
@@ -1115,7 +1119,7 @@ void Robot::update_abs(int *pos)
             _dist = abs(_route[_ptr][0] - pos[0]) - 150;
         _dist = (_dist < 0) ? 0 : _dist;
     }
-    if (_STATE != 2 && _STATE != 3 && (millis() - _prev_time) >= _turn_timer)
+    if (_STATE != 2 && _STATE != 3 && (millis() - _prev_turn_time) >= _turn_timer)
     {
         int turn_error = abs(pos[2] - _pos[2]);
         if (turn_error > 20)
@@ -1126,13 +1130,13 @@ void Robot::update_abs(int *pos)
                 // already received the absurd orientation
                 // accept
                 _pos[2] = pos[2];
-                _prev_time = millis();
+                _prev_turn_time = millis();
                 _turn_update = 0;
             }
             else
             {
                 // wait for another interval
-                _prev_time = millis();
+                _prev_turn_time = millis();
                 _turn_update = 0;
                 _ctr++;
             }
@@ -1140,7 +1144,7 @@ void Robot::update_abs(int *pos)
         else
         {
             _pos[2] = pos[2];
-            _prev_time = 0;
+            _prev_turn_time = 0;
             _turn_update = 1;
         }
     }
@@ -1205,9 +1209,18 @@ void Robot::main_executor()
         check_task();
         if (_STATE != 4)
             action_decoder();
+        _loc.reset_encoders();
         break;
     case 1:
-        proceed = _loc.forward(_dist, _error);
+        if (millis() - _prev_forward_time > _forward_timer)
+        {
+            _prev_forward_time = 0;
+            proceed = _loc.forward(_dist, _error);
+        }
+        else
+        {
+            _loc.reset_encoders();
+        }
         //      Serial.println("Moving forward");
         break;
     case 2:
@@ -1228,7 +1241,7 @@ void Robot::main_executor()
         if (_STATE == 2 || _STATE == 3)
         {
             // wait for 1000ms for the next update
-            _prev_time = millis();
+            _prev_turn_time = millis();
             _turn_update = 0;
         }
         _STATE = 0;
@@ -1367,6 +1380,10 @@ void Robot::action_decoder()
             _turn = abs(remain);
         }
     }
+    if (_STATE == 1)
+    {
+        _prev_forward_time = millis();
+    }
 }
 
 void Robot::check_task()
@@ -1406,7 +1423,7 @@ void Robot::check_task()
 void Robot::reroute()
 {
     // _task_size = (_task_size - _ptr) + 3;
-    int **new_route = (int **)malloc(sizeof(int *) * ((_task_size - _ptr) + 3));
+    int **new_route = (int **)malloc(sizeof(int *) * ((_task_size - _ptr) + 4));
     int new_ptr0[2], new_ptr1[2], new_ptr2[2];
     for (int i = 0; i < ((_task_size - _ptr) + 3); i++)
         new_route[i] = (int *)malloc(sizeof(int) * 2);
@@ -1417,15 +1434,17 @@ void Robot::reroute()
     {
     case 'N':
     {
-        new_ptr1[0] = _route[_ptr][0] - 1500;
-        new_ptr1[1] = _pos[1];
+        new_ptr0[1] += 100;
+        new_ptr1[0] = _route[_ptr][0] - 3000;
+        new_ptr1[1] = new_ptr0[1];
         new_ptr2[0] = new_ptr1[0];
         new_ptr2[1] = _route[_ptr][1];
         break;
     }
     case 'S':
     {
-        new_ptr1[0] = _route[_ptr][0] + 1500;
+        new_ptr0[1] -= 100;
+        new_ptr1[0] = _route[_ptr][0] + 3000;
         new_ptr1[1] = _pos[1];
         new_ptr2[0] = new_ptr1[0];
         new_ptr2[1] = _route[_ptr][1];
@@ -1433,16 +1452,18 @@ void Robot::reroute()
     }
     case 'W':
     {
+        new_ptr0[0] -= 100;
         new_ptr1[0] = _pos[0];
-        new_ptr1[1] = _route[_ptr][1] + 1500;
+        new_ptr1[1] = _route[_ptr][1] + 3000;
         new_ptr2[0] = _route[_ptr][0];
         new_ptr2[1] = new_ptr1[1];
         break;
     }
     case 'E':
     {
+        new_ptr0[0] += 100;
         new_ptr1[0] = _pos[0];
-        new_ptr1[1] = _route[_ptr][1] - 1500;
+        new_ptr1[1] = _route[_ptr][1] - 3000;
         new_ptr2[0] = _route[_ptr][0];
         new_ptr2[1] = new_ptr1[1];
         break;
@@ -1454,23 +1475,15 @@ void Robot::reroute()
         new_route[1][j] = new_ptr1[j];
         new_route[2][j] = new_ptr2[j];
     }
-    for (int i = _ptr; i < (_task_size); i++)
+    for (int i = _ptr + 1; i < (_task_size); i++)
         for (int j = 0; j < 2; j++)
-            new_route[i - _ptr + 3][j] = _route[i][j];
+            new_route[i - _ptr + 2][j] = _route[i][j];
     for (int i = 0; i < _task_size; i++)
         free(_route[i]);
     free(_route);
     _route = new_route;
     _task_size = (_task_size - _ptr) + 3;
     _ptr = 1;
-    Serial.println("New route");
-    for (int i = 0; i < _task_size; i++)
-    {
-        Serial.print(_route[i][0]);
-        Serial.print(" ");
-        Serial.println(_route[i][1]);
-    }
-    Serial.println("");
 }
 
 void Robot::collision_com_init(char *jsonStr)
@@ -1517,6 +1530,21 @@ void setup()
             delay(1000);
         }
     }
+    int pos_now[3];
+    pos_now[0] = 15000;
+    pos_now[1] = 15000;
+    pos_now[2] = 90;
+    robot.update_abs(pos_now);
+    robot.auto_route();
+    int **route = robot.get_route();
+    Serial.println("Route");
+    for (int i = 0; i < robot.get_size(); i++)
+    {
+        Serial.print(route[i][0]);
+        Serial.print("  ");
+        Serial.println(route[i][1]);
+    }
+    Serial.println("");
     if (udp.listenMulticast(IPAddress(224, 3, 29, 1), 10001))
     {
         udp.onPacket([](AsyncUDPPacket packet) {
@@ -1528,7 +1556,7 @@ void setup()
             case 1:
             {
                 const char *ID;
-                ID = "7";
+                ID = "0";
                 if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
                     break;
                 int pos_n[3];
@@ -1547,6 +1575,15 @@ void setup()
                     encoder2.numberTicks = 0;
                     Serial.println("routing the robot");
                     robot.auto_route();
+                    int **route = robot.get_route();
+                    Serial.println("Route");
+                    for (int i = 0; i < robot.get_size(); i++)
+                    {
+                        Serial.print(route[i][0]);
+                        Serial.print("  ");
+                        Serial.println(route[i][1]);
+                    }
+                    Serial.println("");
                     ctr++;
                 }
                 break;
@@ -1632,7 +1669,7 @@ void loop()
         robot.main_executor();
     // if (robot.passed_collision_coordinates())
     // {
-    //     // send out a message to let the other robot go
+    // send out a message to let the other robot go
     //     char jsonStr[80];
     //     robot.collision_com_fin(jsonStr);
     //     udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
