@@ -814,11 +814,14 @@ void setup()
     udp.onPacket([](AsyncUDPPacket packet) {
       DynamicJsonDocument jInfo(1024);
       deserializeJson(jInfo, packet.data());
+      Serial.println("info");
       const int Purpose = jInfo["Purpose"];
+      Serial.println(Purpose);
       switch (Purpose)
       {
         case 1:
           {
+            Serial.println("position received");
             const char *ID;
             ID = "7";
             if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
