@@ -121,7 +121,7 @@ public:
 
 PID::PID()
 {
-    kp = 0.002;
+    kp = 0.001;
     ki = 0.0;
     kd = 0.0;
     errSum = 0;
@@ -171,7 +171,7 @@ public:
 Locomotion::Locomotion(Encoder *encoder1, Encoder *encoder2) : _motor2(encoder1, 27, 14, 1),
                                                                _motor1(encoder2, 12, 13, 2)
 {
-    _PULSE = 5.69;
+    _PULSE = 5.64;
     _off_course = 0;
     for (int i = 0; i < 2; i++)
         _prev_tick[i] = 0;
@@ -570,6 +570,180 @@ void Collision::update_collision_hold_timer(int num)
     _collision_hold_timer = num;
 }
 
+class Destinations
+{
+private:
+    int _lst_size;
+    int _bid;
+    int _dst[2];
+    int _init_pos[2];
+    int **_dst_lst;
+    void _del_dst_lst(int idx);
+
+public:
+    Destinations();
+    void select_dst(int *POS);
+    void load_dst(DynamicJsonDocument &jTask, int *POS);
+    int proceed_bid(DynamicJsonDocument &jDst, int *POS);
+    int arrive_dst(int *POS);
+    int bid_state();
+    int *get_dst();
+    int make_bid();
+};
+
+Destinations::Destinations()
+{
+    _bid = 0;
+    for (int i = 0; i < 2; i++)
+        _dst[i] = -1;
+}
+
+void Destinations::_del_dst_lst(int idx)
+{
+    //  _dst[0] = _dst_lst[idx][0];
+    //  _dst[1] = _dst_lst[idx][1];
+    // swap the value at index with the last element
+    _dst_lst[idx][0] = _dst_lst[_lst_size - 1][0];
+    _dst_lst[idx][1] = _dst_lst[_lst_size - 1][1];
+    // modify _dst_lst and get rid of the smallest element
+    _lst_size--;
+    int **new_ptr = (int **)malloc(sizeof(int *) * (_lst_size));
+    for (int i = 0; i < _lst_size; i++)
+    {
+        new_ptr[i] = (int *)malloc(sizeof(int) * 2);
+        for (int j = 0; j < 2; j++)
+        {
+            new_ptr[i][j] = _dst_lst[i][j];
+        }
+        free(_dst_lst[i]);
+    }
+    free(_dst_lst);
+    _dst_lst = new_ptr;
+}
+
+void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
+{
+    for (int i = 0; i < 2; i++)
+        _init_pos[i] = POS[i];
+    _lst_size = jTask["Num"];
+    Serial.print("Task size: ");
+    Serial.println(_lst_size);
+    _dst_lst = (int **)malloc(sizeof(int *) * _lst_size);
+    // load json destination coordinates into the two-dimensional array
+    for (int i = 0; i < _lst_size; i++)
+    {
+        _dst_lst[i] = (int *)malloc(sizeof(int) * 2);
+        for (int j = 0; j < 2; j++)
+            _dst_lst[i][j] = jTask["Task"][i][j];
+    }
+    // automatically acquire the next destination by calling the function
+    select_dst(POS);
+}
+
+void Destinations::select_dst(int *POS)
+{
+    // select the destination with the least manhattan distance
+    int x = _dst_lst[0][0];
+    int y = _dst_lst[0][1];
+    int idx = 0;
+    int dist = (abs(x - POS[0]) + abs(y - POS[1]));
+    for (int i = 0; i < _lst_size; i++)
+    {
+        x = _dst_lst[i][0];
+        y = _dst_lst[i][1];
+        int new_dist = (abs(x - POS[0]) + abs(y - POS[1]));
+        if (new_dist < dist)
+        {
+            dist = new_dist;
+            idx = i;
+        }
+    }
+    // swap this destination to the front of the array
+    int temp[2];
+    temp[0] = _dst_lst[0][0];
+    temp[1] = _dst_lst[0][1];
+    for (int i = 0; i < 2; i++)
+    {
+        _dst_lst[0][i] = _dst_lst[idx][i];
+        _dst_lst[idx][i] = temp[i];
+    }
+}
+
+int Destinations::proceed_bid(DynamicJsonDocument &jDst, int *POS)
+{
+    int dst[2];
+    dst[0] = jDst["Pos"][0];
+    dst[1] = jDst["Pos"][1];
+    if (_lst_size - 1 > 0)
+    {
+        if (dst[0] == _dst_lst[0][0] && dst[1] == _dst_lst[0][1])
+        {
+            _del_dst_lst(0);
+            select_dst(POS);
+        }
+        else
+        {
+            // get the id of the element
+            int idx = -1;
+            for (int i = 0; i < _lst_size; i++)
+            {
+                if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1])
+                    idx = i;
+            }
+            //      filter out destination of robots going back to their origin
+            if (idx >= 0)
+                _del_dst_lst(idx);
+        }
+        return 0;
+    }
+    // if placed the bid
+    // robot would act immediately
+    // else
+    // robot would stay at where they are
+    // delete the last available task
+    free(_dst_lst[0]);
+    return bid_state();
+}
+
+int *Destinations::get_dst()
+{
+    int *new_ptr = (int *)malloc(sizeof(int) * 2);
+    for (int i = 0; i < 2; i++)
+        new_ptr[i] = _dst[i];
+    return new_ptr;
+}
+
+int Destinations::make_bid()
+{
+    if (!bid_state())
+    {
+        _bid = 1;
+        // dst finally computed
+        for (int i = 0; i < 2; i++)
+            _dst[i] = _dst_lst[0][i];
+        // the destination in the array deleted to keep the available task list consistent among all robots
+        Serial.println("bid made");
+        _del_dst_lst(0);
+        //    in case of the robot that bids at the last
+        if (_lst_size == 0)
+            return 1;
+        return 0;
+    }
+    return 0;
+}
+
+int Destinations::arrive_dst(int *POS)
+{
+    if (POS[0] == _dst[0] && POS[1] == _dst[1])
+        return 1;
+    return 0;
+}
+
+int Destinations::bid_state()
+{
+    return _bid;
+}
+
 class Communication
 {
 private:
@@ -741,7 +915,7 @@ Robot::Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password) :
     _prev_turn_time = 0;
     _prev_forward_time = 0;
     _turn_update = 0;
-    _turn_timer = 2000;
+    _turn_timer = 1000;
     _collision_com_state = 0;
     _pos = _loc.pos;
     _ID = '0';
@@ -1255,8 +1429,6 @@ void Robot::action_decoder()
     int y = _route[_ptr][1] - pos[1];
     int ORI = pos[2];
     free(pos);
-    Serial.print("Current orientation: ");
-    Serial.println(ORI);
     _turn = 90;
     if (!_turn_update)
     {
@@ -1424,8 +1596,8 @@ void Robot::reroute()
 {
     // _task_size = (_task_size - _ptr) + 3;
     int **new_route = (int **)malloc(sizeof(int *) * ((_task_size - _ptr) + 4));
-    int new_ptr0[2], new_ptr1[2], new_ptr2[2];
-    for (int i = 0; i < ((_task_size - _ptr) + 3); i++)
+    int new_ptr0[2], new_ptr1[2], new_ptr2[2], new_ptr3[2];
+    for (int i = 0; i < ((_task_size - _ptr) + 4); i++)
         new_route[i] = (int *)malloc(sizeof(int) * 2);
     // adds the current position of the robot to the route list
     for (int i = 0; i < 2; i++)
@@ -1438,16 +1610,20 @@ void Robot::reroute()
         new_ptr1[0] = _route[_ptr][0] - 3000;
         new_ptr1[1] = new_ptr0[1];
         new_ptr2[0] = new_ptr1[0];
-        new_ptr2[1] = _route[_ptr][1];
+        new_ptr2[1] = new_ptr1[1] - 6000;
+        new_ptr3[0] = _route[_ptr][0];
+        new_ptr3[1] = new_ptr2[1];
         break;
     }
     case 'S':
     {
         new_ptr0[1] -= 100;
         new_ptr1[0] = _route[_ptr][0] + 3000;
-        new_ptr1[1] = _pos[1];
+        new_ptr1[1] = new_ptr0[1];
         new_ptr2[0] = new_ptr1[0];
-        new_ptr2[1] = _route[_ptr][1];
+        new_ptr2[1] = new_ptr1[1] + 6000;
+        new_ptr3[0] = _route[_ptr][0];
+        new_ptr3[1] = new_ptr2[1];
         break;
     }
     case 'W':
@@ -1455,8 +1631,10 @@ void Robot::reroute()
         new_ptr0[0] -= 100;
         new_ptr1[0] = _pos[0];
         new_ptr1[1] = _route[_ptr][1] + 3000;
-        new_ptr2[0] = _route[_ptr][0];
+        new_ptr2[0] = new_ptr1[0] - 6000;
         new_ptr2[1] = new_ptr1[1];
+        new_ptr3[0] = new_ptr2[0];
+        new_ptr3[1] = _route[_ptr][1];
         break;
     }
     case 'E':
@@ -1464,26 +1642,42 @@ void Robot::reroute()
         new_ptr0[0] += 100;
         new_ptr1[0] = _pos[0];
         new_ptr1[1] = _route[_ptr][1] - 3000;
-        new_ptr2[0] = _route[_ptr][0];
+        new_ptr2[0] = new_ptr1[0] + 6000;
         new_ptr2[1] = new_ptr1[1];
+        new_ptr3[0] = new_ptr2[0];
+        new_ptr3[1] = _route[_ptr][1];
         break;
     }
     }
+    Serial.print("new_ptr1[0]: ");
+    Serial.println(new_ptr1[0]);
+    Serial.print("new_ptr2[0]: ");
+    Serial.println(new_ptr2[0]);
     for (int j = 0; j < 2; j++)
     {
         new_route[0][j] = new_ptr0[j];
         new_route[1][j] = new_ptr1[j];
         new_route[2][j] = new_ptr2[j];
+        new_route[3][j] = new_ptr3[j];
     }
-    for (int i = _ptr + 1; i < (_task_size); i++)
+    for (int i = _ptr; i < (_task_size); i++)
         for (int j = 0; j < 2; j++)
-            new_route[i - _ptr + 2][j] = _route[i][j];
+            new_route[i - _ptr + 4][j] = _route[i][j];
     for (int i = 0; i < _task_size; i++)
         free(_route[i]);
     free(_route);
+    Serial.println("route freed");
     _route = new_route;
-    _task_size = (_task_size - _ptr) + 3;
+    _task_size = (_task_size - _ptr) + 4;
     _ptr = 1;
+    for (int i = 0; i < _task_size; i++)
+    {
+        Serial.print(_route[i][0]);
+        Serial.print("  ");
+        Serial.println(_route[i][1]);
+    }
+    _collision.update_collision_state(0);
+    Serial.println();
 }
 
 void Robot::collision_com_init(char *jsonStr)
