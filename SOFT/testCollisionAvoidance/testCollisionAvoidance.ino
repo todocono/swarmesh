@@ -573,8 +573,11 @@ void Collision::update_collision_hold_timer(int num)
 class Destinations
 {
 private:
-    int _lst_size;
+    int _id;
     int _bid;
+    int _action;
+    int _lst_size;
+    int _bid_counter;
     int _dst[2];
     int _init_pos[2];
     int **_dst_lst;
@@ -583,19 +586,28 @@ private:
 public:
     Destinations();
     void select_dst(int *POS);
+    void update_action(int action);
     void load_dst(DynamicJsonDocument &jTask, int *POS);
     int proceed_bid(DynamicJsonDocument &jDst, int *POS);
     int arrive_dst(int *POS);
+    int get_action();
     int bid_state();
     int *get_dst();
     int make_bid();
+    int get_id();
 };
 
 Destinations::Destinations()
 {
     _bid = 0;
+    _action = 0;
     for (int i = 0; i < 2; i++)
         _dst[i] = -1;
+}
+
+void Destinations::update_action(int action)
+{
+    _action = action;
 }
 
 void Destinations::_del_dst_lst(int idx)
@@ -667,6 +679,16 @@ void Destinations::select_dst(int *POS)
         _dst_lst[0][i] = _dst_lst[idx][i];
         _dst_lst[idx][i] = temp[i];
     }
+}
+
+int Destinations::get_action()
+{
+    return _action;
+}
+
+int Destinations::get_id()
+{
+    return _id;
 }
 
 int Destinations::proceed_bid(DynamicJsonDocument &jDst, int *POS)
@@ -861,6 +883,7 @@ private:
     char _ID;
     Locomotion _loc;
     Collision _collision;
+    Destinations _destinations;
     Communication _communication;
 
 public:
@@ -1724,21 +1747,6 @@ void setup()
             delay(1000);
         }
     }
-    int pos_now[3];
-    pos_now[0] = 15000;
-    pos_now[1] = 15000;
-    pos_now[2] = 90;
-    robot.update_abs(pos_now);
-    robot.auto_route();
-    int **route = robot.get_route();
-    Serial.println("Route");
-    for (int i = 0; i < robot.get_size(); i++)
-    {
-        Serial.print(route[i][0]);
-        Serial.print("  ");
-        Serial.println(route[i][1]);
-    }
-    Serial.println("");
     if (udp.listenMulticast(IPAddress(224, 3, 29, 1), 10001))
     {
         udp.onPacket([](AsyncUDPPacket packet) {
@@ -1780,6 +1788,20 @@ void setup()
                     Serial.println("");
                     ctr++;
                 }
+                break;
+            }
+            case 2:
+            {
+                dst.load_dst(jInfo, POS);
+                STATE = 1;
+                Serial.println("task received");
+                break;
+            }
+            case 3:
+            {
+                action = dst.proceed_bid(jInfo, POS);
+                counter++;
+                Serial.println("some task allocated");
                 break;
             }
             case 4:
@@ -1845,6 +1867,7 @@ void setup()
                 break;
             }
             }
+            jInfo.clear();
         });
     }
     Serial.println("Robot initialized");
@@ -1852,20 +1875,53 @@ void setup()
 
 void loop()
 {
-    robot.check_collision();
-    // if (robot.get_collision_state() == 3 && !robot.get_collision_com_state() && millis() - robot.get_collision_com_start_time() > robot.get_collision_com_timer())
-    // {
-    //     char jsonStr[80];
-    //     robot.collision_com_init(jsonStr);
-    //     udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
-    // }
     if (robot.get_state() != -1)
+    {
+        if (!action)
+        {
+            if (counter == ID_int - 1)
+            {
+                Serial.println("task allocated");
+
+                action = dst.make_bid();
+                int *dst_coord = dst.get_dst();
+                Serial.print(dst_coord[0]);
+                Serial.print("  ");
+                Serial.println(dst_coord[1]);
+                Serial.println("position printed");
+                char jsonStr[80];
+                //              jsonCreator(jsonStr);
+                const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
+                DynamicJsonDocument doc(capacity);
+                doc["Purpose"] = 3;
+                JsonArray Pos = doc.createNestedArray("Pos");
+                Pos.add(dst_coord[0]);
+                Pos.add(dst_coord[1]);
+                serializeJson(doc, jsonStr);
+                doc.clear();
+                free(dst_coord);
+                udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+                Serial.println("sent via udp");
+                counter++;
+            }
+        }
+    }
+    else
+    {
+        robot.check_collision();
+        // if (robot.get_collision_state() == 3 && !robot.get_collision_com_state() && millis() - robot.get_collision_com_start_time() > robot.get_collision_com_timer())
+        // {
+        //     char jsonStr[80];
+        //     robot.collision_com_init(jsonStr);
+        //     udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+        // }
         robot.main_executor();
-    // if (robot.passed_collision_coordinates())
-    // {
-    // send out a message to let the other robot go
-    //     char jsonStr[80];
-    //     robot.collision_com_fin(jsonStr);
-    //     udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
-    // }
+        // if (robot.passed_collision_coordinates())
+        // {
+        // send out a message to let the other robot go
+        //     char jsonStr[80];
+        //     robot.collision_com_fin(jsonStr);
+        //     udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+        // }
+    }
 }
