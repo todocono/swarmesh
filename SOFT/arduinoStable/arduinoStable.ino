@@ -22,21 +22,21 @@ const char *ID;
 
 class Destinations
 {
-  private:
-    int *_dst;
-    int *_init_pos;
-    int **_dst_lst;
-    int _lst_size;
-    void _del_dst_lst(int idx);
+private:
+  int *_dst;
+  int *_init_pos;
+  int **_dst_lst;
+  int _lst_size;
+  void _del_dst_lst(int idx);
 
-  public:
-    Destinations();
-    void set_class();
-    void select_dst(int *POS);
-    void load_dst(DynamicJsonDocument &jTask, int *POS);
-    void proceed_dst(DynamicJsonDocument &jDst, int *POS);
-    int* get_dst();
-    int arrive_dst(int *POS);
+public:
+  Destinations();
+  void set_class();
+  void select_dst(int *POS);
+  void load_dst(DynamicJsonDocument &jTask, int *POS);
+  void proceed_dst(DynamicJsonDocument &jDst, int *POS);
+  int *get_dst();
+  int arrive_dst(int *POS);
 };
 
 Destinations::Destinations()
@@ -47,10 +47,12 @@ Destinations::Destinations()
   int _lst_size;
 }
 
-void Destinations::set_class() {
+void Destinations::set_class()
+{
   _dst = (int *)malloc(sizeof(int) * 2);
   _init_pos = (int *)malloc(sizeof(int) * 2);
-  for (int i = 0; i < 2; i ++) _dst[i] = -1;
+  for (int i = 0; i < 2; i++)
+    _dst[i] = -1;
 }
 
 void Destinations::_del_dst_lst(int idx)
@@ -80,7 +82,8 @@ void Destinations::_del_dst_lst(int idx)
 
 void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
 {
-  for (int i = 0; i < 2; i ++) _init_pos[i] = POS[i];
+  for (int i = 0; i < 2; i++)
+    _init_pos[i] = POS[i];
   _lst_size = jTask["Num"];
   Serial.print("Task size: ");
   Serial.println(_lst_size);
@@ -116,7 +119,8 @@ void Destinations::select_dst(int *POS)
       idx = i;
     }
   }
-  for (int i = 0; i < 2; i ++) _dst[i] = _dst_lst[idx][i];
+  for (int i = 0; i < 2; i++)
+    _dst[i] = _dst_lst[idx][i];
   _del_dst_lst(idx);
 }
 
@@ -139,11 +143,13 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
       int idx = -1;
       for (int i = 0; i < _lst_size; i++)
       {
-        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1]) idx = i;
+        if (_dst_lst[i][0] == dst[0] && _dst_lst[i][1] == dst[1])
+          idx = i;
         Serial.println("matched");
       }
       //      filter out destination of robots going back to their origin
-      if (idx >= 0) _del_dst_lst(idx);
+      if (idx >= 0)
+        _del_dst_lst(idx);
     }
   }
   else
@@ -151,21 +157,26 @@ void Destinations::proceed_dst(DynamicJsonDocument &jDst, int *POS)
     // run out of available Destinations
     // go back to original point
     //    only doing so when the last destination conflicts the destination taken by others
-    if (dst[0] == _dst[0] && dst[1] == _dst[1]) {
-      for (int i = 0; i < 2; i ++) _dst[i] = _init_pos[i];
+    if (dst[0] == _dst[0] && dst[1] == _dst[1])
+    {
+      for (int i = 0; i < 2; i++)
+        _dst[i] = _init_pos[i];
     }
   }
 }
 
-int* Destinations::get_dst() {
-  int* new_ptr = (int*) malloc(sizeof(int) * 2);
-  for (int i = 0; i < 2; i ++) new_ptr[i] = _dst[i];
+int *Destinations::get_dst()
+{
+  int *new_ptr = (int *)malloc(sizeof(int) * 2);
+  for (int i = 0; i < 2; i++)
+    new_ptr[i] = _dst[i];
   return new_ptr;
 }
 
 int Destinations::arrive_dst(int *POS)
 {
-  if (POS[0] == _dst[0] && POS[1] == _dst[1]) return 1;
+  if (POS[0] == _dst[0] && POS[1] == _dst[1])
+    return 1;
   return 0;
 }
 
@@ -237,55 +248,56 @@ void setup()
       const int Purpose = jInfo["Purpose"];
       switch (Purpose)
       {
-        case 1:
-          {
-            Serial.println("Position received");
+      case 1:
+      {
+        Serial.println("Position received");
 
-            //            not move if it can't get its position in json document
-            if (!jInfo[ID][0][0] && !jInfo[ID][0][1]) break;
-            POS[0] = jInfo[ID][0][0];
-            POS[1] = jInfo[ID][0][1];
-            ORI = jInfo[ID][1];
-            // move only if it has received tasks
-            int* ptr = dstc.get_dst();
-            int arrive = dstc.arrive_dst(POS);
-            Serial.println(ptr[0]);
-            Serial.println(ptr[1]);
-            Serial.println();
-            if (ptr[0] != -1 && !arrive)
-            {
-              actionDecoder(ORI, POS, ptr);
-            }
-            else if (arrive)
-            {
-              char jsonStr[80];
-              //              jsonCreator(jsonStr);
-              const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
-              DynamicJsonDocument doc(capacity);
-              doc["Purpose"] = 3;
-              JsonArray Pos = doc.createNestedArray("Pos");
-              Pos.add(POS[0]);
-              Pos.add(POS[1]);
-              serializeJson(doc, jsonStr);
-              doc.clear();
-              udp.writeTo((const uint8_t*) jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
-            }
-            free(ptr);
-          }
+        //            not move if it can't get its position in json document
+        if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
           break;
-        case 2:
-          Serial.println("Tasks received");
-          STATE = 1;
-          dstc.load_dst(jInfo, POS);
-          break;
-        case 3:
-          //        other robots have arrived at their destinations
-          //        need to check whether the destinations are the same as its own destination
-          //        move only when it self is not at the destination
-          if (!dstc.arrive_dst(POS)) dstc.proceed_dst(jInfo, POS);
+        POS[0] = jInfo[ID][0][0];
+        POS[1] = jInfo[ID][0][1];
+        ORI = jInfo[ID][1];
+        // move only if it has received tasks
+        int *ptr = dstc.get_dst();
+        int arrive = dstc.arrive_dst(POS);
+        Serial.println(ptr[0]);
+        Serial.println(ptr[1]);
+        Serial.println();
+        if (ptr[0] != -1 && !arrive)
+        {
+          actionDecoder(ORI, POS, ptr);
+        }
+        else if (arrive)
+        {
+          char jsonStr[80];
+          //              jsonCreator(jsonStr);
+          const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
+          DynamicJsonDocument doc(capacity);
+          doc["Purpose"] = 3;
+          JsonArray Pos = doc.createNestedArray("Pos");
+          Pos.add(POS[0]);
+          Pos.add(POS[1]);
+          serializeJson(doc, jsonStr);
+          doc.clear();
+          udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+        }
+        free(ptr);
+      }
+      break;
+      case 2:
+        Serial.println("Tasks received");
+        STATE = 1;
+        dstc.load_dst(jInfo, POS);
+        break;
+      case 3:
+        //        other robots have arrived at their destinations
+        //        need to check whether the destinations are the same as its own destination
+        //        move only when it self is not at the destination
+        if (!dstc.arrive_dst(POS))
+          dstc.proceed_dst(jInfo, POS);
       }
       jInfo.clear();
-
     });
   }
 }

@@ -20,14 +20,15 @@ def calc_orientation(vector):
 
 
 def calc_pos(corners):
-    pos = [int(sum([j[0] for j in corners[0]]) // 4) - 240,
+    # pass
+    pos = [int(sum([j[0] for j in corners[0]]) // 4) - 238,
            int(sum([k[1] for k in corners[0]]) // 4)]
     return pos
 
 
-# coef is 0.21
+# coef is 0.2105
 def cvt_pos(coord):
-    return [round(i * 0.21, 0) for i in coord]
+    return [round((i * 21.05), 0) for i in coord]
 
 
 def send_pos(SOCK):
