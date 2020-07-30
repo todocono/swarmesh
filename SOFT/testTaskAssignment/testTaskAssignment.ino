@@ -266,7 +266,6 @@ void setup()
         case 3:
           action = dst.proceed_bid(jInfo, POS);
           counter++;
-          Serial.println("some task allocated");
           break;
       }
       jInfo.clear();

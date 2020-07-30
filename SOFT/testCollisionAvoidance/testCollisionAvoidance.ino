@@ -584,21 +584,23 @@ private:
     void _del_dst_lst(int idx);
 
 public:
-    Destinations();
+    Destinations(int id);
     void select_dst(int *POS);
     void update_action(int action);
+    void update_bid_counter(int counter);
     void load_dst(DynamicJsonDocument &jTask, int *POS);
-    int proceed_bid(DynamicJsonDocument &jDst, int *POS);
-    int arrive_dst(int *POS);
+    void proceed_bid(DynamicJsonDocument &jDst, int *POS);
+    int get_bid_counter();
+    int get_bid_state();
     int get_action();
-    int bid_state();
-    int *get_dst();
-    int make_bid();
     int get_id();
+    int *get_dst();
+    int *make_bid();
 };
 
-Destinations::Destinations()
+Destinations::Destinations(int id)
 {
+    _id = id;
     _bid = 0;
     _action = 0;
     for (int i = 0; i < 2; i++)
@@ -610,6 +612,16 @@ void Destinations::update_action(int action)
     _action = action;
 }
 
+void Destinations::update_bid_counter(int counter)
+{
+    _bid_counter = counter;
+}
+
+int Destinations::get_bid_counter()
+{
+    return _bid_counter;
+}
+
 void Destinations::_del_dst_lst(int idx)
 {
     //  _dst[0] = _dst_lst[idx][0];
@@ -619,6 +631,8 @@ void Destinations::_del_dst_lst(int idx)
     _dst_lst[idx][1] = _dst_lst[_lst_size - 1][1];
     // modify _dst_lst and get rid of the smallest element
     _lst_size--;
+    Serial.print("Current list size: ");
+    Serial.println(_lst_size);
     int **new_ptr = (int **)malloc(sizeof(int *) * (_lst_size));
     for (int i = 0; i < _lst_size; i++)
     {
@@ -650,6 +664,7 @@ void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
     }
     // automatically acquire the next destination by calling the function
     select_dst(POS);
+    free(POS);
 }
 
 void Destinations::select_dst(int *POS)
@@ -691,7 +706,7 @@ int Destinations::get_id()
     return _id;
 }
 
-int Destinations::proceed_bid(DynamicJsonDocument &jDst, int *POS)
+void Destinations::proceed_bid(DynamicJsonDocument &jDst, int *POS)
 {
     int dst[2];
     dst[0] = jDst["Pos"][0];
@@ -716,15 +731,20 @@ int Destinations::proceed_bid(DynamicJsonDocument &jDst, int *POS)
             if (idx >= 0)
                 _del_dst_lst(idx);
         }
-        return 0;
+        update_action(0);
+        _bid_counter++;
     }
     // if placed the bid
     // robot would act immediately
     // else
     // robot would stay at where they are
     // delete the last available task
-    free(_dst_lst[0]);
-    return bid_state();
+    else
+    {
+        free(_dst_lst[0]);
+        update_action(get_bid_state());
+    }
+    free(POS);
 }
 
 int *Destinations::get_dst()
@@ -735,33 +755,27 @@ int *Destinations::get_dst()
     return new_ptr;
 }
 
-int Destinations::make_bid()
+int *Destinations::make_bid()
 {
-    if (!bid_state())
+    if (!get_bid_state())
     {
         _bid = 1;
         // dst finally computed
         for (int i = 0; i < 2; i++)
             _dst[i] = _dst_lst[0][i];
         // the destination in the array deleted to keep the available task list consistent among all robots
-        Serial.println("bid made");
         _del_dst_lst(0);
         //    in case of the robot that bids at the last
         if (_lst_size == 0)
-            return 1;
-        return 0;
+            update_action(1);
+        else
+            update_action(0);
+        Serial.println(get_action());
     }
-    return 0;
+    return _dst;
 }
 
-int Destinations::arrive_dst(int *POS)
-{
-    if (POS[0] == _dst[0] && POS[1] == _dst[1])
-        return 1;
-    return 0;
-}
-
-int Destinations::bid_state()
+int Destinations::get_bid_state()
 {
     return _bid;
 }
@@ -887,7 +901,7 @@ private:
     Communication _communication;
 
 public:
-    Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password);
+    Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password, int int_id, char *char_id);
     char get_id();
     int get_size();
     int get_state();
@@ -900,6 +914,7 @@ public:
     int collision_distance_calculator(int *pos, int *coordinate, char *direction);
     int verify_collision_coordinate(int *pos, int *route, int *coordinate, char *direction);
     int *get_pos();
+    int *task_assignment_main();
     int *get_collision_coordinates();
     int *process_route(int *pos, int *route);
     int *collision_action_calculator(int *pos, int *coordinate, char *direction);
@@ -916,9 +931,11 @@ public:
     void update_abs(int *pos);
     void update_state(int state);
     void update_collision_com_start_time();
+    void load_dst(DynamicJsonDocument &jDst);
     void update_collision_action(int action);
     void update_collision_com_timer(int time);
     void update_collision_com_state(int state);
+    void process_bid(DynamicJsonDocument &jInfo);
     void update_collision_coordinates(int *coordinates);
     void trajectory_calculator(char *axis, int *value, int *pos, int *route);
     void collision_coordinate_calculator(char *direction1, char *direction2, int value1, int value2, int *coordinate);
@@ -927,9 +944,10 @@ public:
     void collision_com_init(char *jsonStr);
 };
 
-Robot::Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password) : _loc(encoder1, encoder2),
-                                                                                 _communication(ssid, password),
-                                                                                 _collision(23)
+Robot::Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password, int int_id, char *char_id) : _loc(encoder1, encoder2),
+                                                                                                            _communication(ssid, password),
+                                                                                                            _collision(23),
+                                                                                                            _destinations(int_id)
 {
     _ctr = 0;
     _ptr = 1;
@@ -942,6 +960,16 @@ Robot::Robot(Encoder *encoder1, Encoder *encoder2, char *ssid, char *password) :
     _collision_com_state = 0;
     _pos = _loc.pos;
     _ID = '0';
+}
+
+void Robot::load_dst(DynamicJsonDocument &jDst)
+{
+    _destinations.load_dst(jDst, get_pos());
+}
+
+void Robot::process_bid(DynamicJsonDocument &jInfo)
+{
+    _destinations.proceed_bid(jInfo, get_pos());
 }
 
 int Robot::passed_collision_coordinates()
@@ -997,6 +1025,29 @@ int Robot::get_collision_state()
 int *Robot::get_collision_coordinates()
 {
     return _collision.get_collision_coordinates();
+}
+
+int *Robot::task_assignment_main()
+{
+    int *dst = (int *)malloc(sizeof(int) * 2);
+    for (int i = 0; i < 2; i++)
+        dst[i] = 0;
+    if (!_destinations.get_action())
+    {
+        if (_destinations.get_bid_counter() == _destinations.get_id() - 1)
+        {
+            int *new_dst = _destinations.make_bid();
+            for (int i = 0; i < 2; i++)
+                _dst[i] = new_dst[i];
+            return _dst;
+        }
+    }
+    else
+    {
+        auto_route();
+        update_state(0);
+    }
+    return dst;
 }
 
 void Robot::update_collision_com_start_time()
@@ -1186,9 +1237,7 @@ void Robot::calc_error()
 void Robot::auto_route()
 {
     int tmp;
-    int dst[2];
-    dst[0] = 15000;
-    dst[1] = 15000;
+    int *dst = _dst;
     int x_distance = (dst[0] - _pos[0]) / 3000;
     int y_distance = (dst[1] - _pos[1]) / 3000;
 
@@ -1308,13 +1357,13 @@ void Robot::update_abs(int *pos)
     // compensate for the difference using the _dist variable
     if (_STATE == 1)
     {
-
         _loc.reset_encoders();
         if (_direction == 'N' || _direction == 'S')
             _dist = abs(_route[_ptr][1] - pos[1]) - 150;
         else
             _dist = abs(_route[_ptr][0] - pos[0]) - 150;
         _dist = (_dist < 0) ? 0 : _dist;
+        calc_error();
     }
     if (_STATE != 2 && _STATE != 3 && (millis() - _prev_turn_time) >= _turn_timer)
     {
@@ -1725,10 +1774,8 @@ void Robot::collision_com_fin(char *jsonStr)
 char *ssid = "nowifi";
 char *password = "durf2020";
 
-Robot robot(&encoder1, &encoder2, ssid, password);
+Robot robot(&encoder1, &encoder2, ssid, password, 1, "1");
 AsyncUDP udp;
-
-int ctr = 0;
 
 void setup()
 {
@@ -1738,7 +1785,9 @@ void setup()
     WiFi.begin(ssid, password);
     Serial.begin(115200);
     // for testing purposes
-    robot.update_state(-1);
+    robot.update_state(-2);
+    int now_pos[2] = {1000, 120};
+    robot.update_abs(now_pos);
     if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
         Serial.println("WiFi Failed");
@@ -1757,6 +1806,7 @@ void setup()
             {
             case 1:
             {
+                // should be get id here?
                 const char *ID;
                 ID = "0";
                 if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
@@ -1766,42 +1816,19 @@ void setup()
                     pos_n[i] = jInfo[ID][0][i];
                 pos_n[2] = jInfo[ID][1];
                 robot.update_abs(pos_n);
-                if (robot.get_state() == 1)
-                    robot.calc_error();
-                char jsonStr[80];
-                //              jsonCreator(jsonStr);
-                if (!ctr)
-                {
-                    robot.update_state(0);
-                    encoder1.numberTicks = 0;
-                    encoder2.numberTicks = 0;
-                    Serial.println("routing the robot");
-                    robot.auto_route();
-                    int **route = robot.get_route();
-                    Serial.println("Route");
-                    for (int i = 0; i < robot.get_size(); i++)
-                    {
-                        Serial.print(route[i][0]);
-                        Serial.print("  ");
-                        Serial.println(route[i][1]);
-                    }
-                    Serial.println("");
-                    ctr++;
-                }
                 break;
             }
             case 2:
             {
-                dst.load_dst(jInfo, POS);
-                STATE = 1;
-                Serial.println("task received");
+                robot.load_dst(jInfo);
+                robot.update_state(-1);
+                udp.broadcast("Tasks received");
                 break;
             }
             case 3:
             {
-                action = dst.proceed_bid(jInfo, POS);
-                counter++;
-                Serial.println("some task allocated");
+                robot.process_bid(jInfo);
+                udp.broadcast("task allocated");
                 break;
             }
             case 4:
@@ -1870,40 +1897,32 @@ void setup()
             jInfo.clear();
         });
     }
-    Serial.println("Robot initialized");
+    Serial.println("robot initialized");
+    Serial.print("Current state: ");
+    Serial.println(robot.get_state());
 }
 
 void loop()
 {
-    if (robot.get_state() != -1)
+    if (robot.get_state() == -2)
     {
-        if (!action)
+        Serial.println("waiting for new task assignment");
+    }
+    else if (robot.get_state() == -1)
+    {
+        int *dst = robot.task_assignment_main();
+        if (dst[0])
         {
-            if (counter == ID_int - 1)
-            {
-                Serial.println("task allocated");
-
-                action = dst.make_bid();
-                int *dst_coord = dst.get_dst();
-                Serial.print(dst_coord[0]);
-                Serial.print("  ");
-                Serial.println(dst_coord[1]);
-                Serial.println("position printed");
-                char jsonStr[80];
-                //              jsonCreator(jsonStr);
-                const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
-                DynamicJsonDocument doc(capacity);
-                doc["Purpose"] = 3;
-                JsonArray Pos = doc.createNestedArray("Pos");
-                Pos.add(dst_coord[0]);
-                Pos.add(dst_coord[1]);
-                serializeJson(doc, jsonStr);
-                doc.clear();
-                free(dst_coord);
-                udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
-                Serial.println("sent via udp");
-                counter++;
-            }
+            char jsonStr[80];
+            const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);
+            DynamicJsonDocument doc(capacity);
+            doc["Purpose"] = 3;
+            JsonArray Pos = doc.createNestedArray("Pos");
+            Pos.add(dst[0]);
+            Pos.add(dst[1]);
+            serializeJson(doc, jsonStr);
+            doc.clear();
+            udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
         }
     }
     else
