@@ -1107,6 +1107,7 @@ void Robot::action_decoder()
   int x = _route[_ptr][0] - pos[0];
   int y = _route[_ptr][1] - pos[1];
   free(pos);
+  Serial.println("action decoded");
   int ORI = _pos[2];
   _turn = 90;
   if (abs(ORI) <= 5)
