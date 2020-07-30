@@ -1258,7 +1258,6 @@ void Robot::auto_route()
         _route = (int **)malloc(sizeof(int *) * _task_size);
         for (int i = 0; i < _task_size; i++)
             _route[i] = (int *)malloc(sizeof(int) * 2);
-        Serial.println("distance calculated");
         _route[tmp + 0][0] = dst[0] - x_distance * 3000;
         _route[tmp + 0][1] = dst[1] - y_distance * 3000;
         _route[tmp + 1][0] = dst[0] - random_num * 3000;
