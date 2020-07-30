@@ -1774,7 +1774,7 @@ void Robot::collision_com_fin(char *jsonStr)
 char *ssid = "nowifi";
 char *password = "durf2020";
 
-Robot robot(&encoder1, &encoder2, ssid, password, 1, "1");
+Robot robot(&encoder1, &encoder2, ssid, password, 2, "2");
 AsyncUDP udp;
 
 void setup()
@@ -1808,7 +1808,7 @@ void setup()
             {
                 // should be get id here?
                 const char *ID;
-                ID = "0";
+                ID = "1";
                 if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
                     break;
                 int pos_n[3];
