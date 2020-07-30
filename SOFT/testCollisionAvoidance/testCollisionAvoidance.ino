@@ -545,7 +545,7 @@ int Collision::collision_avoidance_main()
         {
             update_collision_state(3);
             set_collision_start_time();
-            update_collision_hold_timer(2000);
+            update_collision_hold_timer(5000);
         }
         else if (decode_readings(0) || decode_readings(1))
         {
@@ -840,6 +840,7 @@ void Communication::collision_com_init(char *str, int *route, int *pos, const ch
     free(pos);
     for (int i = 0; i < 80; i++)
         str[i] = jsonStr[i];
+    Serial.println("message created");
 }
 
 void Communication::collision_com_reply(char *str, int action, int *coordinates, const char *id)
@@ -1466,7 +1467,6 @@ void Robot::main_executor()
 {
 
     int proceed = 0;
-    Serial.println("acting");
     switch (_STATE)
     {
     case 0:
@@ -1518,7 +1518,6 @@ void Robot::action_decoder()
     int x = _route[_ptr][0] - pos[0];
     int y = _route[_ptr][1] - pos[1];
     int ORI = pos[2];
-    Serial.println("action decoded");
     free(pos);
     _turn = 90;
     if (!_turn_update)
@@ -1776,7 +1775,7 @@ void Robot::collision_com_init(char *jsonStr)
     update_collision_com_state(1);
     // char *state;
     // return state;
-    _communication.collision_com_init(jsonStr, _route[_ptr], _pos, get_id());
+    _communication.collision_com_init(jsonStr, _route[_ptr], get_pos(), get_id());
 }
 
 void Robot::collision_com_reply(char *jsonStr, const char *id, int action)
@@ -1944,9 +1943,14 @@ void loop()
         robot.check_collision();
         if (robot.get_collision_state() == 3 && !robot.get_collision_com_state() && millis() - robot.get_collision_com_start_time() > robot.get_collision_com_timer())
         {
+            udp.broadcast("collision");
+            robot.update_collision_com_state(1);
             char jsonStr[80];
             robot.collision_com_init(jsonStr);
+            Serial.println(jsonStr);
+            // udp.broadcast(jsonStr);
             udp.writeTo((const uint8_t *)jsonStr, strlen(jsonStr), IPAddress(224, 3, 29, 1), 10001);
+            Serial.println("collision message sent");
         }
         robot.main_executor();
         if (robot.passed_collision_coordinates())
