@@ -592,7 +592,6 @@ public:
     void proceed_bid(DynamicJsonDocument &jDst, int *POS);
     int get_bid_counter();
     int get_bid_state();
-    int get_lst_size();
     int get_action();
     int get_id();
     int *get_dst();
@@ -604,7 +603,6 @@ Destinations::Destinations(int id)
     _id = id;
     _bid = 0;
     _action = 0;
-    _bid_counter = 0;
     for (int i = 0; i < 2; i++)
         _dst[i] = -1;
 }
@@ -617,11 +615,6 @@ void Destinations::update_action(int action)
 void Destinations::update_bid_counter(int counter)
 {
     _bid_counter = counter;
-}
-
-int Destinations::get_lst_size()
-{
-    return _lst_size;
 }
 
 int Destinations::get_bid_counter()
@@ -738,6 +731,7 @@ void Destinations::proceed_bid(DynamicJsonDocument &jDst, int *POS)
             if (idx >= 0)
                 _del_dst_lst(idx);
         }
+        update_action(0);
         _bid_counter++;
     }
     // if placed the bid
@@ -747,10 +741,8 @@ void Destinations::proceed_bid(DynamicJsonDocument &jDst, int *POS)
     // delete the last available task
     else
     {
-        _lst_size = 0;
-        Serial.println("Tasks all assigned");
-        //     // free(_dst_lst[0]);
-        //     update_action(get_bid_state());
+        free(_dst_lst[0]);
+        update_action(get_bid_state());
     }
     free(POS);
 }
@@ -774,6 +766,11 @@ int *Destinations::make_bid()
         // the destination in the array deleted to keep the available task list consistent among all robots
         _del_dst_lst(0);
         //    in case of the robot that bids at the last
+        if (_lst_size == 0)
+            update_action(1);
+        else
+            update_action(0);
+        Serial.println(get_action());
     }
     return _dst;
 }
@@ -1036,24 +1033,27 @@ int *Robot::task_assignment_main()
     int *dst = (int *)malloc(sizeof(int) * 2);
     for (int i = 0; i < 2; i++)
         dst[i] = 0;
-    if (!_destinations.get_bid_state())
+    if (!_destinations.get_action())
     {
         if (_destinations.get_bid_counter() == _destinations.get_id() - 1)
         {
-            dst = _destinations.make_bid();
+            int *new_dst = _destinations.make_bid();
             for (int i = 0; i < 2; i++)
-                _dst[i] = dst[i];
+                _dst[i] = new_dst[i];
+            return _dst;
         }
     }
-    if (_destinations.get_bid_state() && !_destinations.get_lst_size())
+    else
     {
         auto_route();
         update_state(0);
     }
+
     else
     {
         update_state(-2);
     }
+
     return dst;
 }
 
@@ -1245,10 +1245,6 @@ void Robot::auto_route()
 {
     int tmp;
     int *dst = _dst;
-    Serial.print("Current destination");
-    Serial.print(dst[0]);
-    Serial.print("  ");
-    Serial.println(dst[1]);
     int x_distance = (dst[0] - _pos[0]) / 3000;
     int y_distance = (dst[1] - _pos[1]) / 3000;
 
@@ -1304,14 +1300,6 @@ void Robot::auto_route()
         _route[1][0] = _pos[0] + x_remainder;
         _route[1][1] = _pos[1];
     }
-    Serial.println("Current route");
-    for (int i = 0; i < _task_size; i++)
-    {
-        Serial.print(_route[i][0]);
-        Serial.print("  ");
-        Serial.println(_route[i][1]);
-    }
-    Serial.println("    ");
 }
 
 void Robot::tune_pid(double kp)
@@ -1792,7 +1780,8 @@ void Robot::collision_com_fin(char *jsonStr)
 char *ssid = "nowifi";
 char *password = "durf2020";
 
-Robot robot(&encoder1, &encoder2, ssid, password, 1, "0");
+
+Robot robot(&encoder1, &encoder2, ssid, password, 2, "2");
 AsyncUDP udp;
 
 void setup()
@@ -1826,7 +1815,9 @@ void setup()
             case 1:
             {
                 // should be get id here?
-                if (!jInfo[self_ID][0][0] && !jInfo[self_ID][0][1])
+                const char *ID;
+                ID = "1";
+                if (!jInfo[ID][0][0] && !jInfo[ID][0][1])
                     break;
                 int pos_n[3];
                 for (int i = 0; i < 2; i++)
@@ -1924,7 +1915,7 @@ void loop()
     else if (robot.get_state() == -1)
     {
         int *dst = robot.task_assignment_main();
-        if (dst[0] > 0)
+        if (dst[0])
         {
             char jsonStr[80];
             const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2);

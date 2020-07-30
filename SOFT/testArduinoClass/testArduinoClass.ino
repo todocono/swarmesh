@@ -85,7 +85,6 @@ void Destinations::load_dst(DynamicJsonDocument &jTask, int *POS)
   for (int i = 0; i < 2; i++)
     _init_pos[i] = POS[i];
   _lst_size = jTask["Num"];
-  Serial.println("");
   Serial.print("Task size: ");
   Serial.println(_lst_size);
   _dst_lst = (int **)malloc(sizeof(int *) * _lst_size);
