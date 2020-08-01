@@ -1,3 +1,4 @@
+#include <ArduinoJson.h>
 #include <FastLED.h>
 #include "WiFi.h"
 #include "AsyncUDP.h"
@@ -26,6 +27,7 @@ void setup()
   delay(3000);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  Serial.begin(115200);
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
   FastLED.setBrightness(BRIGHTNESS);
   if (WiFi.waitForConnectResult() != WL_CONNECTED)
@@ -36,21 +38,26 @@ void setup()
       delay(1000);
     }
   }
+  Serial.println("initializing udp");
   if (udp.listenMulticast(IPAddress(224, 3, 29, 1), 10001))
   {
     udp.onPacket([](AsyncUDPPacket packet) {
-      DynamicJsonDocument jInfo(1024);
-      deserializeJson(jInfo, packet.data());
-      const int Purpose = jInfo["Purpose"];
-      switch (Purpose)
-      {
-      case 1:
-        STATE = 1;
-      case 0:
-        STATE = 0;
-      }
+            DynamicJsonDocument jInfo(1024);
+            deserializeJson(jInfo, packet.data());
+            const int Purpose = jInfo["Purpose"];
+            Serial.println("command received");
+            switch (Purpose)
+            {
+            case 1:
+              STATE = 1;
+              break;
+            case 0:
+              STATE = 0;
+              break;
+            }
     });
   }
+  Serial.println("Robot initialized");
 }
 
 void loop()

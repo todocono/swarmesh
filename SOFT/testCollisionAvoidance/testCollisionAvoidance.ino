@@ -1839,6 +1839,7 @@ void setup()
             }
             case 2:
             {
+              Serial.println("task received");
                 robot.load_dst(jInfo);
                 robot.update_state(-1);
                 break;
