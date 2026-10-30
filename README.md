@@ -1,7 +1,7 @@
 # Swarm Mesh Research Team
 
 To read the latest research published by the team, access: 
-https://github.com/todocono/DOCS/Publications
+https://github.com/todocono/swarmesh/blob/master/DOC/Paper/SWARM_2019_paper.pdf
 
 To work with the PCB, you will need the latest version of Eagle: https://www.autodesk.com/products/eagle/overview 
 
